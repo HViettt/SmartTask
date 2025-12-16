@@ -1,44 +1,10 @@
-/**
- * ============================================================================
- * API SERVICE MODULE
- * ============================================================================
- * Purpose: Centralized HTTP client for all backend API calls
- * 
- * Features:
- * - Automatic token injection in request headers
- * - Global error handling with automatic logout on 401/403
- * - Configurable base URL (from environment or localhost:5000)
- * - Axios instance with sensible defaults
- * 
- * Auto-injected Headers:
- *   - Authorization: Bearer {token} (from localStorage)
- *   - Content-Type: application/json
- * 
- * Error Handling:
- *   - 401 (Unauthorized): Auto-logout, redirect to /login
- *   - 403 (Forbidden): Auto-logout, redirect to /login
- *   - Other errors: Reject promise for component handling
- * 
- * Usage:
- *   import api from '../../services/api';
- *   const response = await api.get('/tasks');
- *   const data = await api.post('/tasks', { title: 'Task' });
- * 
- * Environment Variables:
- *   VITE_API_URL: API base URL (default: http://127.0.0.1:5000/api)
- * 
- * Author: System Implementation
- * Last Updated: December 16, 2025
- * ============================================================================
- */
-
 import axios from "axios";
 
-// Auto detect API URL from environment or use default
+// Auto detect API URL
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: import.meta.env.VITE_API_URL,
   headers: {
     "Content-Type": "application/json",
   },
