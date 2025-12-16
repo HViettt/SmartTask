@@ -1,0 +1,8 @@
+# Global
+node_modules/
+.env
+.env.*
+
+# OS / IDE
+.vscode/
+.DS_Store
