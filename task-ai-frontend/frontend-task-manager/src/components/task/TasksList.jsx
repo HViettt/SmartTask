@@ -56,6 +56,11 @@ export const TaskList = () => {
   const [formData, setFormData] = useState(initialFormState);
 
   const filteredTasks = useMemo(() => {
+    // ✅ Ensure tasks is an array
+    if (!Array.isArray(tasks)) {
+      return [];
+    }
+    
     return tasks.filter(task => {
       const matchesFilter = filter === 'all' || task.status === filter;
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -258,7 +263,7 @@ export const TaskList = () => {
 
           {filteredTasks.length === 0 && !isLoading && (
             <EmptyState
-              title="📋 Không có công việc nào"
+              title="Không có công việc nào"
               message={
                 filter === 'all' && searchTerm === ''
                   ? 'Bắt đầu bằng cách tạo công việc đầu tiên của bạn'

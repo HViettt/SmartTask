@@ -28,32 +28,14 @@ import {
   Clock,
   AlertTriangle,
   X,
-  CalendarClock
+  CalendarClock,
+  ListTodo,
+  Cog,
+  AlertCircle,
+  Trophy
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard.jsx';
 import { useI18n } from '../utils/i18n';
-
-// Helper icon component
-const ListTodoIcon = (props) => (
-  <svg 
-    {...props}
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <rect x="3" y="5" width="6" height="6" rx="1" />
-    <path d="m3 17 2 2 4-4" />
-    <path d="M13 6h8" />
-    <path d="M13 12h8" />
-    <path d="M13 18h8" />
-  </svg>
-);
 
 export const Dashboard = () => {
   const { tasks, fetchTasks } = useTaskStore();
@@ -82,6 +64,11 @@ export const Dashboard = () => {
   }, [user?._id, fetchTasks]);
 
   const filteredTasks = useMemo(() => {
+    // ✅ Ensure tasks is an array
+    if (!Array.isArray(tasks)) {
+      return [];
+    }
+
     if (timeFilter === 'all') return tasks;
 
     const now = new Date();
@@ -194,13 +181,13 @@ export const Dashboard = () => {
   );
 
   const statCards = useMemo(() => ([
-    { key: 'total', title: t('dashboard.stats.total'), value: stats.total, icon: ListTodoIcon, color: 'bg-indigo-500 text-indigo-500' },
-    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: Clock, color: 'bg-slate-500 text-slate-500', subtext: t('dashboard.stats.sub.todo') },
-    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Clock, color: 'bg-blue-500 text-blue-500', subtext: t('dashboard.stats.sub.doing') },
+    { key: 'total', title: t('dashboard.stats.total'), value: stats.total, icon: ListTodo, color: 'bg-indigo-500 text-indigo-500' },
+    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: AlertCircle, color: 'bg-slate-500 text-slate-500', subtext: t('dashboard.stats.sub.todo') },
+    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Cog, color: 'bg-blue-500 text-blue-500', subtext: t('dashboard.stats.sub.doing') },
     { key: 'done', title: t('dashboard.stats.done'), value: stats.done, icon: CheckCircle2, color: 'bg-green-500 text-green-500', subtext: t('dashboard.stats.sub.done', { percent: stats.completionRate }) },
     { key: 'overdue', title: t('dashboard.stats.overdue'), value: stats.overdueTasks, icon: AlertTriangle, color: 'bg-red-500 text-red-500', subtext: t('dashboard.stats.sub.overdue') },
-    { key: 'highPriority', title: t('dashboard.stats.highPriority'), value: stats.highPriority, icon: AlertTriangle, color: 'bg-orange-500 text-orange-500', subtext: t('dashboard.stats.sub.highPriority') },
-    { key: 'completedToday', title: t('dashboard.stats.completedToday'), value: stats.completedToday, icon: CheckCircle2, color: 'bg-emerald-500 text-emerald-500', subtext: t('dashboard.stats.sub.completedToday') }
+    { key: 'highPriority', title: t('dashboard.stats.highPriority'), value: stats.highPriority, icon: AlertCircle, color: 'bg-orange-500 text-orange-500', subtext: t('dashboard.stats.sub.highPriority') },
+    { key: 'completedToday', title: t('dashboard.stats.completedToday'), value: stats.completedToday, icon: Trophy, color: 'bg-emerald-500 text-emerald-500', subtext: t('dashboard.stats.sub.completedToday') }
   ]), [stats, t]);
 
   const tasksForModal = useMemo(() => {
@@ -290,75 +277,17 @@ export const Dashboard = () => {
 
       {/* Stats Grid - 4 cột layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Tasks */}
-        <StatCard
-          title="📋 Tổng công việc"
-          value={stats.total}
-          icon={CheckCircle2}
-          color="blue"
-          subtext={timeFilterLabel}
-          onClick={() => handleOpenStat('total')}
-        />
-        
-        {/* Todo */}
-        <StatCard
-          title="📌 Chưa làm"
-          value={stats.todo}
-          icon={() => <div className="text-lg">📌</div>}
-          color="orange"
-          subtext="Đang chờ xử lý"
-          onClick={() => handleOpenStat('todo')}
-        />
-        
-        {/* Doing */}
-        <StatCard
-          title="⚙️ Đang làm"
-          value={stats.doing}
-          icon={() => <div className="text-lg">⚙️</div>}
-          color="purple"
-          subtext="Đang tiến hành"
-          onClick={() => handleOpenStat('doing')}
-        />
-        
-        {/* Done */}
-        <StatCard
-          title="✅ Hoàn thành"
-          value={stats.done}
-          icon={() => <div className="text-lg">✅</div>}
-          color="green"
-          subtext={`${stats.completionRate}% hoàn thành`}
-          onClick={() => handleOpenStat('done')}
-        />
-
-        {/* Overdue */}
-        <StatCard
-          title="⚠️ Quá hạn"
-          value={stats.overdueTasks}
-          icon={() => <div className="text-lg">⚠️</div>}
-          color="red"
-          subtext="Cần xử lý ngay"
-          onClick={() => handleOpenStat('overdue')}
-        />
-
-        {/* High Priority */}
-        <StatCard
-          title="🔴 Ưu tiên cao"
-          value={stats.highPriority}
-          icon={() => <div className="text-lg">🔴</div>}
-          color="red"
-          subtext="Chưa hoàn thành"
-          onClick={() => handleOpenStat('highPriority')}
-        />
-
-        {/* Completed Today */}
-        <StatCard
-          title="🎉 Hôm nay"
-          value={stats.completedToday}
-          icon={() => <div className="text-lg">🎉</div>}
-          color="green"
-          subtext="Hoàn thành"
-          onClick={() => handleOpenStat('completedToday')}
-        />
+        {statCards.map(card => (
+          <StatCard
+            key={card.key}
+            title={card.title}
+            value={card.value}
+            icon={card.icon}
+            color={card.color}
+            subtext={card.subtext}
+            onClick={() => handleOpenStat(card.key)}
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

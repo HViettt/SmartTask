@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit, Plus, StickyNote, ArrowRight, Loader2 } from 'lucide-react';
+import { X, Edit, Plus, StickyNote, ArrowRight, Loader2, Save, Sparkles } from 'lucide-react';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 
@@ -196,9 +196,9 @@ export const AddTaskForm = ({
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              🚫 {t('common.cancel')}
+              <X size={16} /> {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -206,7 +206,22 @@ export const AddTaskForm = ({
               className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               {isLoading && <Loader2 size={16} className="animate-spin"/>}
-              {isLoading ? '⏳ ...' : editingTask ? '💾 ' + t('common.update') : '✨ ' + t('tasks.add')}
+              {isLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  {t('common.loading')}
+                </>
+              ) : editingTask ? (
+                <>
+                  <Save size={16} />
+                  {t('common.update')}
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  {t('tasks.add')}
+                </>
+              )}
             </button>
           </div>
         </form>

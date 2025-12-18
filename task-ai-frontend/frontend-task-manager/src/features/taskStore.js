@@ -24,7 +24,9 @@ export const useTaskStore = create((set, get) => ({
 
     try {
       const res = await api.get("/tasks");
-      set({ tasks: res.data, isLoading: false });
+      // ✅ Handle new response format: { success, data, count }
+      const tasksData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      set({ tasks: tasksData, isLoading: false });
     } catch (err) {
       const msg = err.response?.data?.message || "Không thể tải danh sách.";
       set({ error: msg, isLoading: false });
@@ -70,11 +72,14 @@ export const useTaskStore = create((set, get) => ({
     }
   },
 
-  // ---------------------------
   // CẬP NHẬT CÔNG VIỆC
   // ---------------------------
   updateTask: async (id, updates) => {
     const prev = get().tasks;
+    // ✅ Ensure prev is an array
+    if (!Array.isArray(prev)) {
+      throw new Error("Tasks state is not an array");
+    }
 
     set({
       tasks: prev.map((t) =>
@@ -96,6 +101,11 @@ export const useTaskStore = create((set, get) => ({
   // ---------------------------
   deleteTask: async (id) => {
     const prev = get().tasks;
+    // ✅ Ensure prev is an array
+    if (!Array.isArray(prev)) {
+      throw new Error("Tasks state is not an array");
+    }
+    
     const deletedTask = prev.find(t => t._id === id);
     set({ tasks: prev.filter((t) => t._id !== id) });
 

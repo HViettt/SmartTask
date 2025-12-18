@@ -50,6 +50,9 @@ export const Layout = () => {
         const settings = res.data.notificationSettings;
         
         if (!settings.webEntryAlerts) return;
+        
+        // ✅ Ensure tasks is an array
+        if (!Array.isArray(tasks)) return;
 
         const now = new Date();
         const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);

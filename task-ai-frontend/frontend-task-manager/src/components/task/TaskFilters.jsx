@@ -30,7 +30,7 @@
  */
 
 import React from 'react';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, ListTodo, AlertCircle, Cog, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { TaskStatus, TaskPriority } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 
@@ -47,10 +47,10 @@ export const TaskFilters = ({
   const { t } = useI18n();
 
   const statusOptions = [
-    { value: 'all', label: '📋 Tất cả', icon: '📋' },
-    { value: TaskStatus.TODO, label: '📌 Chưa làm', icon: '📌' },
-    { value: TaskStatus.DOING, label: '⚙️ Đang làm', icon: '⚙️' },
-    { value: TaskStatus.DONE, label: '✅ Hoàn thành', icon: '✅' }
+    { value: 'all', label: '📋 Tất cả', icon: ListTodo },
+    { value: TaskStatus.TODO, label: '📌 Chưa làm', icon: AlertCircle },
+    { value: TaskStatus.DOING, label: '⚙️ Đang làm', icon: Cog },
+    { value: TaskStatus.DONE, label: '✅ Hoàn thành', icon: CheckCircle2 }
   ];
 
   const priorityOptions = [
@@ -89,19 +89,23 @@ export const TaskFilters = ({
           Trạng thái
         </label>
         <div className="flex gap-2 flex-wrap">
-          {statusOptions.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => onFilterChange(opt.value)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                filter === opt.value
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {statusOptions.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onFilterChange(opt.value)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                  filter === opt.value
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <Icon size={16} />
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
