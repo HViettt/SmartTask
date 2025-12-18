@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ * DASHBOARD PAGE - TỔNG QUAN CÔNG VIỆC
+ * ============================================================================
+ * Purpose: Hiển thị dashboard tổng hợp thống kê, chart và công việc sắp tới
+ * 
+ * Features:
+ *   - Thống kê: Tổng số, Chưa làm, Đang làm, Hoàn thành, Quá hạn
+ *   - Chart: Pie chart phân bố trạng thái công việc
+ *   - Danh sách: Công việc sắp tới (deadline)
+ *   - Filter: Lọc theo thời gian (7 ngày, 30 ngày, tất cả)
+ *   - I18n: Hỗ trợ đa ngôn ngữ
+ * 
+ * Author: Dashboard Implementation
+ * Last Updated: December 18, 2025
+ * ============================================================================
+ */
+
 import React, { useMemo, useEffect, useState } from 'react';
 import { useAuthStore } from '../features/useStore.js';
 import { useTaskStore } from '../features/taskStore.js';
@@ -12,6 +30,7 @@ import {
   X,
   CalendarClock
 } from 'lucide-react';
+import { StatCard } from '../components/common/StatCard.jsx';
 import { useI18n } from '../utils/i18n';
 
 // Helper icon component
@@ -269,19 +288,77 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - 4 cột layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map(card => (
-          <StatCard
-            key={card.key}
-            title={card.title}
-            value={card.value}
-            icon={card.icon}
-            color={card.color}
-            subtext={card.subtext}
-            onClick={() => handleOpenStat(card.key)}
-          />
-        ))}
+        {/* Total Tasks */}
+        <StatCard
+          title="📋 Tổng công việc"
+          value={stats.total}
+          icon={CheckCircle2}
+          color="blue"
+          subtext={timeFilterLabel}
+          onClick={() => handleOpenStat('total')}
+        />
+        
+        {/* Todo */}
+        <StatCard
+          title="📌 Chưa làm"
+          value={stats.todo}
+          icon={() => <div className="text-lg">📌</div>}
+          color="orange"
+          subtext="Đang chờ xử lý"
+          onClick={() => handleOpenStat('todo')}
+        />
+        
+        {/* Doing */}
+        <StatCard
+          title="⚙️ Đang làm"
+          value={stats.doing}
+          icon={() => <div className="text-lg">⚙️</div>}
+          color="purple"
+          subtext="Đang tiến hành"
+          onClick={() => handleOpenStat('doing')}
+        />
+        
+        {/* Done */}
+        <StatCard
+          title="✅ Hoàn thành"
+          value={stats.done}
+          icon={() => <div className="text-lg">✅</div>}
+          color="green"
+          subtext={`${stats.completionRate}% hoàn thành`}
+          onClick={() => handleOpenStat('done')}
+        />
+
+        {/* Overdue */}
+        <StatCard
+          title="⚠️ Quá hạn"
+          value={stats.overdueTasks}
+          icon={() => <div className="text-lg">⚠️</div>}
+          color="red"
+          subtext="Cần xử lý ngay"
+          onClick={() => handleOpenStat('overdue')}
+        />
+
+        {/* High Priority */}
+        <StatCard
+          title="🔴 Ưu tiên cao"
+          value={stats.highPriority}
+          icon={() => <div className="text-lg">🔴</div>}
+          color="red"
+          subtext="Chưa hoàn thành"
+          onClick={() => handleOpenStat('highPriority')}
+        />
+
+        {/* Completed Today */}
+        <StatCard
+          title="🎉 Hôm nay"
+          value={stats.completedToday}
+          icon={() => <div className="text-lg">🎉</div>}
+          color="green"
+          subtext="Hoàn thành"
+          onClick={() => handleOpenStat('completedToday')}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

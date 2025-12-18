@@ -190,21 +190,23 @@ export const AddTaskForm = ({
             />
           </div>
 
+          {/* 📌 Nút hành động - Chuẩn hóa UI, thêm visual feedback */}
           <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 mt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              disabled={isLoading}
+              className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('common.cancel')}
+              🚫 {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-70"
+              className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               {isLoading && <Loader2 size={16} className="animate-spin"/>}
-              {editingTask ? t('common.update') : t('tasks.add')}
+              {isLoading ? '⏳ ...' : editingTask ? '💾 ' + t('common.update') : '✨ ' + t('tasks.add')}
             </button>
           </div>
         </form>

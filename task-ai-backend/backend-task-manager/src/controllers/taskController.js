@@ -1,20 +1,65 @@
+/**
+ * ============================================================================
+ * TASK CONTROLLER - QUẢN LÝ CÔNG VIỆC
+ * ============================================================================
+ * Mục đích: Xử lý các logic liên quan đến công việc (CRUD)
+ * 
+ * API Endpoints:
+ * - GET  /api/tasks          - Lấy danh sách tất cả công việc của user
+ * - POST /api/tasks          - Tạo công việc mới
+ * - PUT  /api/tasks/:id      - Cập nhật công việc
+ * - DELETE /api/tasks/:id    - Xoá công việc
+ * - POST /api/tasks/ai-suggest - Gợi ý thứ tự ưu tiên công việc bằng AI
+ * 
+ * Authentication: Tất cả endpoints cần JWT token (yêu cầu xác thực)
+ * 
+ * ============================================================================
+ */
 
 const Task = require('../models/Task');
 const Notification = require('../models/Notification');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const aiService = require('../utils/aiService');
 
-// GET /api/tasks
+/**
+ * 📌 GET /api/tasks
+ * Lấy danh sách tất cả công việc của user hiện tại
+ * 
+ * Query params: None
+ * Response: Array<Task>
+ */
 exports.getTasks = async (req, res) => {
   try {
+    // ✅ Lấy công việc sắp xếp theo ngày tạo mới nhất
     const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    res.json(tasks);
+    res.json({
+      success: true,
+      data: tasks,
+      count: tasks.length
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Lỗi khi lấy danh sách công việc: ' + error.message 
+    });
   }
 };
 
-// POST /api/tasks
+/**
+ * 📌 POST /api/tasks
+ * Tạo công việc mới
+ * 
+ * Body: {
+ *   title: string (required),
+ *   description: string,
+ *   deadline: ISO8601 string,
+ *   priority: 'High' | 'Medium' | 'Low',
+ *   complexity: 'Hard' | 'Medium' | 'Easy',
+ *   notes: string
+ * }
+ * 
+ * Response: Task object (201 Created)
+ */
 exports.createTask = async (req, res) => {
   try {
     const newTask = new Task({
@@ -23,13 +68,13 @@ exports.createTask = async (req, res) => {
     });
     const savedTask = await newTask.save();
     
-    // Ghi nhận thông báo khi tạo task mới (để hiện rõ trong Notification Center)
+    // 🔔 Ghi nhận thông báo khi tạo task mới
     try {
       await Notification.create({
         userId: req.user._id,
         type: 'task',
         title: 'Công việc mới được tạo',
-        message: `${savedTask.title} đã được thêm vào danh sách của bạn`,
+        message: `"${savedTask.title}" đã được thêm vào danh sách của bạn`,
         taskId: savedTask._id,
         metadata: {
           task: {
@@ -43,36 +88,56 @@ exports.createTask = async (req, res) => {
         }
       });
     } catch (notifyErr) {
-      console.warn('Không thể ghi thông báo task mới:', notifyErr.message);
+      console.warn('⚠️ Lỗi ghi thông báo task mới:', notifyErr.message);
     }
 
-    res.status(201).json(savedTask);
+    res.status(201).json({
+      success: true,
+      data: savedTask,
+      message: 'Công việc được tạo thành công'
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ 
+      success: false,
+      message: 'Lỗi khi tạo công việc: ' + error.message 
+    });
   }
 };
 
-// PUT /api/tasks/:id
+/**
+ * 📌 PUT /api/tasks/:id
+ * Cập nhật công việc
+ * 
+ * Body: Các field cần cập nhật (title, deadline, priority, status, etc)
+ * Response: Updated Task object
+ */
 exports.updateTask = async (req, res) => {
   try {
     const { status } = req.body;
     let updates = { ...req.body };
 
+    // ✅ Nếu đánh dấu hoàn thành, ghi lại thời gian hoàn thành
     if (status === 'Done') {
       updates.completedAt = new Date();
     } else if (status && status !== 'Done') {
       updates.completedAt = null;
     }
 
+    // 🔍 Tìm và cập nhật task (chỉ được cập nhật task của chính user)
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       updates,
       { new: true }
     );
 
-    if (!task) return res.status(404).json({ message: 'Task not found' });
+    if (!task) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Công việc không tồn tại' 
+      });
+    }
 
-    // Tạo thông báo task-status (nếu có thay đổi quan trọng)
+    // 🔔 Tạo thông báo cho thay đổi quan trọng
     try {
       const now = new Date();
       const deadline = task.deadline ? new Date(task.deadline) : null;
@@ -80,38 +145,31 @@ exports.updateTask = async (req, res) => {
 
       let notifyData = null;
 
-      if (status === 'Todo' && task.status === 'Todo') {
-        notifyData = {
-          subtype: 'not-started',
-          title: 'Công việc chưa bắt đầu',
-          message: `"${task.title}" vẫn chưa được bắt đầu`,
-          severity: 'info'
-        };
-      } else if (status === 'In Progress') {
-        notifyData = {
-          subtype: 'in-progress',
-          title: 'Công việc đang thực hiện',
-          message: `"${task.title}" đang được thực hiện`,
-          severity: 'info'
-        };
-      } else if (status === 'Done') {
+      if (status === 'Done') {
         notifyData = {
           subtype: 'completed',
-          title: 'Công việc hoàn thành',
-          message: `"${task.title}" đã hoàn thành`,
+          title: '✅ Công việc hoàn thành',
+          message: `"${task.title}" đã hoàn thành!`,
+          severity: 'success'
+        };
+      } else if (status === 'In Progress' || status === 'Doing') {
+        notifyData = {
+          subtype: 'in-progress',
+          title: '⚙️ Công việc đang thực hiện',
+          message: `"${task.title}" đang được thực hiện`,
           severity: 'info'
         };
       } else if (deadline && in48Hours > 0 && in48Hours <= 48) {
         notifyData = {
           subtype: 'deadline-soon',
-          title: 'Công việc sắp đến hạn',
+          title: '⏰ Công việc sắp đến hạn',
           message: `"${task.title}" sẽ hết hạn trong ${Math.floor(in48Hours)} giờ`,
-          severity: 'warn'
+          severity: 'warning'
         };
-      } else if (deadline && in48Hours < 0) {
+      } else if (deadline && in48Hours < 0 && status !== 'Done') {
         notifyData = {
           subtype: 'overdue',
-          title: 'Công việc quá hạn',
+          title: '🚨 Công việc quá hạn',
           message: `"${task.title}" đã quá hạn`,
           severity: 'critical'
         };
@@ -139,56 +197,101 @@ exports.updateTask = async (req, res) => {
         });
       }
     } catch (notifyErr) {
-      console.warn('Không thể ghi thông báo task status:', notifyErr.message);
+      console.warn('⚠️ Lỗi ghi thông báo status:', notifyErr.message);
     }
 
-    res.json(task);
+    res.json({
+      success: true,
+      data: task,
+      message: 'Công việc được cập nhật thành công'
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ 
+      success: false,
+      message: 'Lỗi khi cập nhật công việc: ' + error.message 
+    });
   }
 };
 
-// DELETE /api/tasks/:id
+/**
+ * 📌 DELETE /api/tasks/:id
+ * Xoá công việc
+ * 
+ * Response: Deleted task info
+ */
 exports.deleteTask = async (req, res) => {
   try {
-    const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-    if (!task) return res.status(404).json({ message: 'Task not found' });
-    res.json({ message: 'Task deleted successfully' });
+    const task = await Task.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    });
+
+    if (!task) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Công việc không tồn tại' 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: task,
+      message: 'Công việc đã được xoá thành công'
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Lỗi khi xoá công việc: ' + error.message 
+    });
   }
 };
 
-// POST /api/tasks/ai-suggest
+/**
+ * 📌 POST /api/tasks/ai-suggest
+ * Gợi ý thứ tự ưu tiên công việc bằng AI (Google Gemini)
+ * 
+ * Algorithm:
+ * 1. Lấy tất cả công việc chưa hoàn thành
+ * 2. Gửi cho Gemini AI để phân tích
+ * 3. Trả về danh sách công việc được sắp xếp lại + lý do
+ * 
+ * Response: { sortedIds: [], reasoning: {} }
+ */
 exports.suggestTasks = async (req, res) => {
   try {
-    // Get user's non-completed tasks
+    // 🔍 Lấy tất cả công việc chưa hoàn thành của user
     const tasks = await Task.find({ 
       userId: req.user._id,
       status: { $ne: 'Done' } 
     });
 
     if (tasks.length === 0) {
-      return res.json({ sortedIds: [], reasoning: {} });
+      return res.json({ 
+        success: true,
+        data: {
+          sortedIds: [], 
+          reasoning: {}
+        },
+        message: 'Không có công việc nào để gợi ý'
+      });
     }
 
-    console.log('📋 Found', tasks.length, 'tasks for user', req.user._id);
+    console.log('📋 Tìm thấy', tasks.length, 'công việc cho user', req.user._id);
     
-    // Use AI Service (tries Groq > Gemini > Fallback)
+    // 🤖 Sử dụng AI Service (thử Groq > Gemini > Fallback)
     const result = await aiService.getSuggestedOrder(tasks);
-    return res.json(result);
+    return res.json({
+      success: true,
+      data: result,
+      message: 'AI đã phân tích và gợi ý thứ tự ưu tiên'
+    });
     
   } catch (error) {
-    console.error('❌ AI Suggest Error:', error.message);
+    console.error('❌ Lỗi AI Suggest:', error.message);
     return res.status(500).json({ 
-      message: "Failed to suggest tasks: " + error.message,
-      debug: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      success: false,
+      message: 'Lỗi khi gợi ý công việc: ' + error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
   }
-    
-    // Kiểm tra mỗi item có đúng format không
-    const isValid = suggestions.every(s => 
-      s.taskId && typeof s.taskId === 'string' &&
-      s.reasoning && typeof s.reasoning === 'string'
-    );
 };

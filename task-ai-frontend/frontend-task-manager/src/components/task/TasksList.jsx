@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { TaskCard } from './TaskCard.jsx';
 import { AddTaskForm } from './AddTaskForm.jsx';
+import { EmptyState } from '../common/EmptyState.jsx';
 import { useI18n } from '../../utils/i18n';
 
 export const TaskList = () => {
@@ -256,26 +257,15 @@ export const TaskList = () => {
           ))}
 
           {filteredTasks.length === 0 && !isLoading && (
-            <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/20 mb-4 text-blue-500">
-                <div className="w-8 h-8 flex items-center justify-center border-2 border-current rounded-lg">
-                  <Check size={18} />
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                {t('tasks.emptyTitle')}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto mb-6">
-                {t('tasks.emptyDesc')}
-              </p>
-              <button
-                onClick={() => handleOpenModal()}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-sm"
-              >
-                <Plus size={18} />
-                {t('tasks.emptyCta')}
-              </button>
-            </div>
+            <EmptyState
+              title="📋 Không có công việc nào"
+              message={
+                filter === 'all' && searchTerm === ''
+                  ? 'Bắt đầu bằng cách tạo công việc đầu tiên của bạn'
+                  : 'Không tìm thấy công việc phù hợp với tiêu chí lọc'
+              }
+              onAction={() => handleOpenModal()}
+            />
           )}
         </div>
       )}

@@ -1,13 +1,41 @@
-import React from 'react';
+/**
+ * ============================================================================
+ * TASK CARD COMPONENT - HIỂN THỊ CÔNG VIỆC ĐƠN HẠNG
+ * ============================================================================
+ * Purpose: Hiển thị thông tin chi tiết của một task với các hành động
+ * 
+ * Props:
+ *   - task: Task object - Dữ liệu công việc
+ *   - index: number - Vị trí trong danh sách (dùng cho AI suggestion badge)
+ *   - onUpdate: function(taskId, updates) - Cập nhật task
+ *   - onDelete: function(taskId) - Xoá task
+ *   - onEdit: function(task) - Mở form edit
+ * 
+ * Features:
+ *   - Hiển thị status, priority, complexity badges
+ *   - Quick action buttons (Complete/Start/Reopen)
+ *   - Confirm dialog khi xoá
+ *   - Responsive: full width trên mobile, side actions trên desktop
+ *   - Dark mode support
+ * 
+ * Author: UI/UX Improvement
+ * Last Updated: December 18, 2025
+ * ============================================================================
+ */
+
+import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   Check, Calendar, Trash2, Edit, CheckCircle2, StickyNote, Sparkles
 } from 'lucide-react';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
+import { ConfirmDialog } from '../common/ConfirmDialog.jsx';
 
 export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
   const { t, locale } = useI18n();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const statusColors = {
     [TaskStatus.TODO]: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
@@ -96,25 +124,29 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
   };
 
   const handleDelete = async () => {
-    const titleSuffix = task.title ? ` "${task.title}"` : '';
-    if (!window.confirm(`${t('common.confirmDelete')}${titleSuffix}?`)) return;
+    setIsDeleting(true);
     try {
       const deleted = await onDelete(task._id);
       const deletedSuffix = deleted?.title ? ` "${deleted.title}"` : '';
       toast.success(`${t('tasks.toasts.deleted')}${deletedSuffix}`.trim());
+      setShowDeleteConfirm(false);
     } catch (err) {
       toast.error(t('tasks.toasts.deleteError'));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
-    <div 
-      className={`group relative bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border transition-all hover:shadow-md ${
-        task.status === TaskStatus.DONE 
-          ? 'border-emerald-100 dark:border-emerald-900/30 opacity-75' 
-          : 'border-gray-100 dark:border-gray-700'
-      }`}
-    >
+    <>
+      {/* Main Task Card */}
+      <div 
+        className={`group relative bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border transition-all hover:shadow-md ${
+          task.status === TaskStatus.DONE 
+            ? 'border-emerald-100 dark:border-emerald-900/30 opacity-75' 
+            : 'border-gray-100 dark:border-gray-700'
+        }`}
+      >
       {/* AI Reason Badge */}
       {task.aiReasoning && task.status !== TaskStatus.DONE && (
         <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -249,7 +281,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
               <Edit size={16} />
             </button>
             <button 
-              onClick={handleDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               className="flex-1 md:flex-none px-3 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
               title={t('common.delete')}
             >
@@ -258,6 +290,19 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
           </div>
         </div>
       </div>
-    </div>
+
+      {/* 🗑️ Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="🗑️ Xoá công việc?"
+        message={`Bạn có chắc chắn muốn xoá "${task.title}"? Hành động này không thể hoàn tác.`}
+        isDangerous={true}
+        confirmText="🗑️ Xoá"
+        cancelText="🚫 Hủy"
+        isLoading={isDeleting}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+      />
+    </>
   );
 };
