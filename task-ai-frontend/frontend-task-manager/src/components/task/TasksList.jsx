@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { TaskCard } from './TaskCard.jsx';
 import { AddTaskForm } from './AddTaskForm.jsx';
+import { TaskDetailModal } from './TaskDetailModal.jsx';
 import { EmptyState } from '../common/EmptyState.jsx';
 import { useI18n } from '../../utils/i18n';
 
@@ -29,6 +30,10 @@ export const TaskList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [isAILoading, setIsAILoading] = useState(false);
+  
+  // State cho Task Detail Modal
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   // Fetch tasks on mount
   useEffect(() => {
@@ -258,6 +263,10 @@ export const TaskList = () => {
               onUpdate={updateTask}
               onDelete={deleteTask}
               onEdit={handleOpenModal}
+              onViewDetail={(task) => {
+                setSelectedTask(task);
+                setIsDetailModalOpen(true);
+              }}
             />
           ))}
 
@@ -275,7 +284,7 @@ export const TaskList = () => {
         </div>
       )}
 
-      {/* Modal Form */}
+      {/* Modal Form - Tạo/Sửa Task */}
       <AddTaskForm
         isOpen={isModalOpen}
         onClose={() => {
@@ -288,6 +297,17 @@ export const TaskList = () => {
         setFormData={setFormData}
         editingTask={editingTask}
         isLoading={isLoading}
+      />
+
+      {/* Modal Xem Chi Tiết Task */}
+      <TaskDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedTask(null);
+        }}
+        task={selectedTask}
+        onUpdate={updateTask}
       />
     </div>
   );

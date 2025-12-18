@@ -32,7 +32,7 @@ import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 import { ConfirmDialog } from '../common/ConfirmDialog.jsx';
 
-export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
+export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail }) => {
   const { t, locale } = useI18n();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -182,15 +182,27 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
               >
                 <Check size={14} strokeWidth={3} />
               </button>
-              <div className="min-w-0">
-                <h3 className={`text-lg font-semibold truncate pr-2 transition-colors ${
+              {/* Clickable area để xem chi tiết task */}
+              <div 
+                className="min-w-0 flex-1 cursor-pointer group"
+                onClick={() => onViewDetail && onViewDetail(task)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && onViewDetail) {
+                    e.preventDefault();
+                    onViewDetail(task);
+                  }
+                }}
+              >
+                <h3 className={`text-lg font-semibold truncate pr-2 transition-colors group-hover:text-blue-600 dark:group-hover:text-blue-400 ${
                   task.status === TaskStatus.DONE 
                     ? 'text-gray-500 line-through decoration-gray-400' 
                     : 'text-gray-900 dark:text-white'
                 }`}>
                   {task.title}
                 </h3>
-                <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 line-clamp-2">
+                <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 line-clamp-2 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
                   {task.description || t('common.noDescription')}
                 </p>
               </div>

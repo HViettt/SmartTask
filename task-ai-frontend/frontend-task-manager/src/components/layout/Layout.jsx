@@ -112,16 +112,18 @@ export const Layout = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar for Desktop */}
+      {/* Sidebar for Desktop - Cải thiện alignment */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+        {/* Logo Header - Consistent height với nav items */}
+        <div className="h-16 px-6 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2 shrink-0">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">S</span>
           </div>
           <span className="text-xl font-bold text-gray-800 dark:text-white">{t('appName')}</span>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        {/* Navigation Menu - Thẳng hàng với logo header */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           <NavItem to="/dashboard" icon={LayoutDashboard} label={t('nav.dashboard')} />
           <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
         </nav>

@@ -58,11 +58,13 @@ const dictionaries = {
       edit: 'Chỉnh sửa',
       delete: 'Xóa',
       save: 'Lưu',
+      saving: 'Đang lưu...',
       update: 'Cập nhật',
       cancel: 'Hủy',
       close: 'Đóng',
       back: 'Quay lại',
       loading: 'Đang tải...',
+      created: 'Tạo lúc',
       searchPlaceholder: 'Tìm kiếm công việc...',
       all: 'Tất cả',
       markAllRead: 'Đánh dấu tất cả đã đọc',
@@ -111,6 +113,8 @@ const dictionaries = {
       emptyCta: 'Thêm công việc đầu tiên',
       formTitleCreate: 'Thêm công việc mới',
       formTitleEdit: 'Chỉnh sửa công việc',
+      detailTitle: 'Chi tiết công việc',
+      editTitle: 'Chỉnh sửa công việc',
       form: {
         title: 'Tiêu đề',
         titlePlaceholder: 'Ví dụ: Hoàn thành báo cáo...',
@@ -127,6 +131,14 @@ const dictionaries = {
         start: 'Bắt đầu',
         complete: 'Hoàn thành ngay',
         reopen: 'Mở lại'
+      },
+      success: {
+        updated: 'Đã cập nhật công việc thành công!'
+      },
+      errors: {
+        titleRequired: 'Vui lòng nhập tiêu đề công việc',
+        deadlineRequired: 'Vui lòng chọn deadline',
+        updateFailed: 'Không thể cập nhật công việc. Vui lòng thử lại.'
       },
       toasts: {
         created: '✅ Đã tạo',
@@ -334,11 +346,13 @@ const dictionaries = {
       edit: 'Edit',
       delete: 'Delete',
       save: 'Save',
+      saving: 'Saving...',
       update: 'Update',
       cancel: 'Cancel',
       close: 'Close',
       back: 'Back',
       loading: 'Loading...',
+      created: 'Created at',
       searchPlaceholder: 'Search tasks...',
       all: 'All',
       markAllRead: 'Mark all as read',
@@ -387,6 +401,8 @@ const dictionaries = {
       emptyCta: 'Add the first task',
       formTitleCreate: 'Add new task',
       formTitleEdit: 'Edit task',
+      detailTitle: 'Task Details',
+      editTitle: 'Edit Task',
       form: {
         title: 'Title',
         titlePlaceholder: 'Example: Finish the report...',
@@ -403,6 +419,14 @@ const dictionaries = {
         start: 'Start',
         complete: 'Complete now',
         reopen: 'Reopen'
+      },
+      success: {
+        updated: 'Task updated successfully!'
+      },
+      errors: {
+        titleRequired: 'Please enter task title',
+        deadlineRequired: 'Please select deadline',
+        updateFailed: 'Unable to update task. Please try again.'
       },
       toasts: {
         created: '✅ Created',
