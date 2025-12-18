@@ -290,19 +290,20 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit }) => {
           </div>
         </div>
       </div>
+    </div>
 
-      {/* 🗑️ Confirm Delete Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        title="🗑️ Xoá công việc?"
-        message={`Bạn có chắc chắn muốn xoá "${task.title}"? Hành động này không thể hoàn tác.`}
-        isDangerous={true}
-        confirmText="🗑️ Xoá"
-        cancelText="🚫 Hủy"
-        isLoading={isDeleting}
-        onCancel={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDelete}
-      />
+    {/* 🗑️ Confirm Delete Dialog */}
+    <ConfirmDialog
+      isOpen={showDeleteConfirm}
+      title="🗑️ Xoá công việc?"
+      message={`Bạn có chắc chắn muốn xoá "${task.title}"? Hành động này không thể hoàn tác.`}
+      isDangerous={true}
+      confirmText="🗑️ Xoá"
+      cancelText="🚫 Hủy"
+      isLoading={isDeleting}
+      onCancel={() => setShowDeleteConfirm(false)}
+      onConfirm={handleDelete}
+    />
     </>
   );
 };
