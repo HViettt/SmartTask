@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { toast } from 'react-hot-toast';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { showToast } from '../../utils/toastUtils';
 import { useTaskStore } from '../../features/taskStore.js';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { 
@@ -8,6 +9,7 @@ import {
 import { TaskCard } from './TaskCard.jsx';
 import { AddTaskForm } from './AddTaskForm.jsx';
 import { TaskDetailModal } from './TaskDetailModal.jsx';
+import { DuplicateTaskModal } from './DuplicateTaskModal.jsx';
 import { EmptyState } from '../common/EmptyState.jsx';
 import { useI18n } from '../../utils/i18n';
 
@@ -24,16 +26,26 @@ export const TaskList = () => {
     clearError 
   } = useTaskStore();
   const { t } = useI18n();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [isAILoading, setIsAILoading] = useState(false);
+  const [titleError, setTitleError] = useState('');
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [duplicateTaskInfo, setDuplicateTaskInfo] = useState(null);
+  const [pendingFormData, setPendingFormData] = useState(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   
   // State cho Task Detail Modal
   const [selectedTask, setSelectedTask] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  
+  // Ref để scroll đến task
+  const taskRefs = useRef({});
 
   // Fetch tasks on mount
   useEffect(() => {
@@ -47,12 +59,44 @@ export const TaskList = () => {
       return () => clearTimeout(timer);
     }
   }, [error, clearError]);
+  
+  // ✅ Handle highlight param from notification
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const highlightId = params.get('highlight');
+    
+    if (highlightId && tasks.length > 0) {
+      // Tìm task trong list
+      const task = tasks.find(t => t._id === highlightId);
+      
+      if (task) {
+        // Set highlighted state
+        setHighlightedTaskId(highlightId);
+        
+        // Scroll to task sau 300ms để DOM render xong
+        setTimeout(() => {
+          const taskElement = taskRefs.current[highlightId];
+          if (taskElement) {
+            taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 300);
+        
+        // Clear highlight sau 3 giây
+        setTimeout(() => {
+          setHighlightedTaskId(null);
+          // Clear URL param
+          navigate('/tasks', { replace: true });
+        }, 3000);
+      }
+    }
+  }, [location.search, tasks, navigate]);
 
   // Form State
   const initialFormState = {
     title: '',
     description: '',
     deadline: new Date().toISOString().split('T')[0],
+    deadlineTime: '23:59',
     priority: TaskPriority.MEDIUM,
     complexity: TaskComplexity.MEDIUM,
     notes: '',
@@ -67,6 +111,10 @@ export const TaskList = () => {
     }
     
     return tasks.filter(task => {
+      // ✅ Ensure task and task.title exist
+      if (!task || !task.title) {
+        return false;
+      }
       const matchesFilter = filter === 'all' || task.status === filter;
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesFilter && matchesSearch;
@@ -82,6 +130,7 @@ export const TaskList = () => {
         deadline: typeof task.deadline === 'string' 
           ? task.deadline.split('T')[0] 
           : new Date(task.deadline).toISOString().split('T')[0],
+        deadlineTime: task.deadlineTime || '23:59',
         priority: task.priority,
         complexity: task.complexity,
         notes: task.notes || '',
@@ -91,6 +140,7 @@ export const TaskList = () => {
       setEditingTask(null);
       setFormData(initialFormState);
     }
+    setTitleError('');
     setIsModalOpen(true);
   };
 
@@ -100,7 +150,7 @@ export const TaskList = () => {
       if (editingTask) {
         const updated = await updateTask(editingTask._id, formData);
         const titleSuffix = updated?.title ? ` "${updated.title}"` : '';
-        toast.success(`${t('tasks.toasts.updated')}${titleSuffix}`, { duration: 3000 });
+        showToast.success(`${t('tasks.toasts.updated')}${titleSuffix}`);
       } else {
         // Payload already uses correct enum values from types.js (capitalized: 'Medium', 'Todo')
         const payload = {
@@ -108,6 +158,7 @@ export const TaskList = () => {
           description: formData.description,
           // convert date-only value to an ISO timestamp (backend may expect full datetime)
           deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
+          deadlineTime: formData.deadlineTime || '23:59',
           priority: formData.priority,
           complexity: formData.complexity,
           notes: formData.notes,
@@ -119,17 +170,37 @@ export const TaskList = () => {
 
         const created = await addTask(payload);
         const titleSuffix = created?.title ? ` "${created.title}"` : '';
-        toast.success(`${t('tasks.toasts.created')}${titleSuffix}`, { duration: 3000 });
+        showToast.success(`${t('tasks.toasts.created')}${titleSuffix}`);
       }
       setIsModalOpen(false);
       setFormData(initialFormState);
       setEditingTask(null);
+      setTitleError('');
     } catch (error) {
       // Extract server message if available for clearer debugging
       const serverMsg = error?.response?.data?.message || error?.response?.data || error?.message;
+      const code = error?.response?.data?.code;
+
+      if (code === 'TASK_DUPLICATE') {
+        const duplicateMsg = typeof serverMsg === 'string'
+          ? serverMsg
+          : 'Tiêu đề công việc đã tồn tại trong ngày này.';
+        setTitleError(duplicateMsg);
+        setDuplicateTaskInfo(error.response?.data?.data);
+        setPendingFormData({
+          title: formData.title,
+          description: formData.description,
+          deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
+          priority: formData.priority,
+          complexity: formData.complexity,
+          notes: formData.notes,
+        });
+        setIsDuplicateModalOpen(true);
+        return;
+      }
       // eslint-disable-next-line no-console
       console.error('Failed to save task:', error, serverMsg);
-      toast.error(typeof serverMsg === 'string' ? serverMsg : t('tasks.toasts.saveError'), { duration: 4000 });
+      showToast.error(typeof serverMsg === 'string' ? serverMsg : t('tasks.toasts.saveError'));
     }
   };
 
@@ -140,8 +211,8 @@ export const TaskList = () => {
     try {
       const result = await suggestTasks();
       
-      // Assuming result has format: { sortedIds: [], reasoning: {} }
-      if (result.sortedIds && result.reasoning) {
+      // ✅ Result has format: { sortedIds: [], reasoning: {} }
+      if (result && result.sortedIds && result.reasoning) {
         const { sortedIds, reasoning } = result;
         
         // Reorder tasks based on AI suggestion
@@ -162,13 +233,72 @@ export const TaskList = () => {
         useTaskStore.setState({ 
           tasks: [...reorderedTasks, ...remainingTasks] 
         });
+        
+        // ✅ Show success toast
+        showToast.success(`AI đã sắp xếp lại ${reorderedTasks.length} công việc theo độ ưu tiên`);
+      } else {
+        showToast.info('Không có công việc nào để sắp xếp');
       }
     } catch (error) {
-      toast.error(t('tasks.toasts.aiError'));
+      const errorMsg = error?.message || t('tasks.toasts.aiError');
+      showToast.error(errorMsg);
       console.error('AI suggestion error:', error);
     } finally {
       setIsAILoading(false);
     }
+  };
+
+  // Auto-rename handler for duplicate task
+  const handleAutoRenameTask = async () => {
+    if (!pendingFormData || !duplicateTaskInfo) return;
+
+    try {
+      // Count existing tasks with similar titles to generate suffix
+      const titleBase = pendingFormData.title.trim();
+      let counter = 2;
+      
+      // Keep incrementing until we find a unique title
+      while (true) {
+        const newTitle = `${titleBase} (${counter})`;
+        const isDuplicate = tasks.some(t => 
+          t.title.toLowerCase() === newTitle.toLowerCase() &&
+          new Date(t.deadline).toDateString() === new Date(pendingFormData.deadline).toDateString()
+        );
+        if (!isDuplicate) {
+          pendingFormData.title = newTitle;
+          // Ensure deadlineTime is also sent
+          if (!pendingFormData.deadlineTime) {
+            pendingFormData.deadlineTime = '23:59';
+          }
+          break;
+        }
+        counter++;
+      }
+
+      // Retry with renamed title
+      const created = await addTask(pendingFormData);
+      const titleSuffix = created?.title ? ` "${created.title}"` : '';
+      showToast.success(`${t('tasks.toasts.created')}${titleSuffix}`);
+      
+      // Reset states
+      setIsModalOpen(false);
+      setFormData(initialFormState);
+      setEditingTask(null);
+      setTitleError('');
+      setIsDuplicateModalOpen(false);
+      setDuplicateTaskInfo(null);
+      setPendingFormData(null);
+    } catch (error) {
+      const serverMsg = error?.response?.data?.message || error?.message;
+      showToast.error(typeof serverMsg === 'string' ? serverMsg : t('tasks.toasts.saveError'));
+    }
+  };
+
+  const handleCloseDuplicateModal = () => {
+    setIsDuplicateModalOpen(false);
+    setDuplicateTaskInfo(null);
+    setPendingFormData(null);
+    // Keep form and error state so user can edit
   };
 
   return (
@@ -256,18 +386,23 @@ export const TaskList = () => {
         /* Task List Grid */
         <div className="grid grid-cols-1 gap-4">
           {filteredTasks.map((task, index) => (
-            <TaskCard
+            <div
               key={task._id}
-              task={task}
-              index={index}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-              onEdit={handleOpenModal}
-              onViewDetail={(task) => {
-                setSelectedTask(task);
-                setIsDetailModalOpen(true);
-              }}
-            />
+              ref={el => taskRefs.current[task._id] = el}
+            >
+              <TaskCard
+                task={task}
+                index={index}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+                onEdit={handleOpenModal}
+                onViewDetail={(task) => {
+                  setSelectedTask(task);
+                  setIsDetailModalOpen(true);
+                }}
+                isHighlighted={highlightedTaskId === task._id}
+              />
+            </div>
           ))}
 
           {filteredTasks.length === 0 && !isLoading && (
@@ -291,12 +426,18 @@ export const TaskList = () => {
           setIsModalOpen(false);
           setEditingTask(null);
           setFormData(initialFormState);
+          setTitleError('');
         }}
         onSubmit={handleSubmit}
         formData={formData}
         setFormData={setFormData}
         editingTask={editingTask}
         isLoading={isLoading}
+        titleError={titleError}
+        onTitleChange={(value) => {
+          setTitleError('');
+          setFormData({ ...formData, title: value });
+        }}
       />
 
       {/* Modal Xem Chi Tiết Task */}
@@ -308,6 +449,17 @@ export const TaskList = () => {
         }}
         task={selectedTask}
         onUpdate={updateTask}
+      />
+
+      {/* Modal Duplicate Task - Auto Rename Option */}
+      <DuplicateTaskModal
+        isOpen={isDuplicateModalOpen}
+        existingTask={duplicateTaskInfo}
+        onRetry={() => {
+          // Keep form and error state for manual edit
+        }}
+        onCancel={handleCloseDuplicateModal}
+        onAutoRename={handleAutoRenameTask}
       />
     </div>
   );

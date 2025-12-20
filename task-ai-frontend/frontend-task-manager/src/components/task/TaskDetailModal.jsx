@@ -29,7 +29,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Edit2, Save, Calendar, AlertCircle, Layers, StickyNote, CheckCircle2, Clock, Loader2 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { showToast } from '../../utils/toastUtils';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 
@@ -43,8 +43,7 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onUpdate }) => {
     priority: TaskPriority.MEDIUM,
     complexity: TaskComplexity.MEDIUM,
     status: TaskStatus.TODO,
-    deadline: '',
-    notes: ''
+    deadline: '',    deadlineTime: '23:59',    notes: ''
   });
 
   // Sync form data khi task thay đổi
@@ -57,6 +56,7 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onUpdate }) => {
         complexity: task.complexity || TaskComplexity.MEDIUM,
         status: task.status || TaskStatus.TODO,
         deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
+        deadlineTime: task.deadlineTime || '23:59',
         notes: task.notes || ''
       });
     }
@@ -91,22 +91,22 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onUpdate }) => {
     e.preventDefault();
     
     if (!formData.title.trim()) {
-      toast.error(t('tasks.errors.titleRequired'));
+      showToast.error(t('tasks.errors.titleRequired'));
       return;
     }
 
     if (!formData.deadline) {
-      toast.error(t('tasks.errors.deadlineRequired'));
+      showToast.error(t('tasks.errors.deadlineRequired'));
       return;
     }
 
     setIsLoading(true);
     try {
       await onUpdate(task._id, formData);
-      toast.success(t('tasks.success.updated'));
+      showToast.success(t('tasks.success.updated'));
       setIsEditMode(false); // Quay về view mode sau khi save
     } catch (error) {
-      toast.error(t('tasks.errors.updateFailed'));
+      showToast.error(t('tasks.errors.updateFailed'));
       console.error('Update task error:', error);
     } finally {
       setIsLoading(false);
@@ -364,18 +364,33 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onUpdate }) => {
                 </div>
 
                 {/* Deadline */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    {t('tasks.form.deadline')} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.deadline}
-                    onChange={e => setFormData({...formData, deadline: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white outline-none"
-                    disabled={isLoading}
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      {t('tasks.form.deadline')} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.deadline}
+                      onChange={e => setFormData({...formData, deadline: e.target.value})}
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white outline-none"
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      {t('tasks.form.time') || 'Giờ'}
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.deadlineTime || '23:59'}
+                      onChange={e => setFormData({...formData, deadlineTime: e.target.value})}
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white outline-none"
+                      disabled={isLoading}
+                      title="Giờ hết hạn (mặc định 23:59)"
+                    />
+                  </div>
                 </div>
               </div>
 

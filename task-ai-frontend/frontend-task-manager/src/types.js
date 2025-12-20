@@ -2,7 +2,8 @@
 export const TaskStatus = {
   TODO: 'Todo',
   DOING: 'Doing',
-  DONE: 'Done'
+  DONE: 'Done',
+  OVERDUE: 'Overdue'
 };
 
 // Task Priority Enum - Match backend schema
@@ -24,7 +25,8 @@ export const getStatusLabel = (status) => {
   const labels = {
     [TaskStatus.TODO]: 'Cần làm',
     [TaskStatus.DOING]: 'Đang làm',
-    [TaskStatus.DONE]: 'Hoàn thành'
+    [TaskStatus.DONE]: 'Hoàn thành',
+    [TaskStatus.OVERDUE]: 'Quá hạn'
   };
   return labels[status] || status;
 };

@@ -73,7 +73,7 @@ const TaskRow = ({ task, t }) => {
   );
 };
 
-export const NotificationDetailModal = ({ notification, onClose }) => {
+export const NotificationDetailModal = ({ notification, onClose, onCloseDropdown }) => {
   const navigate = useNavigate();
   const { t, locale } = useI18n();
   const { title, message, createdAt, taskId, metadata = {}, type, severity = 'info', subtype } = notification;
@@ -111,6 +111,8 @@ export const NotificationDetailModal = ({ notification, onClose }) => {
   const goToTask = (id) => {
     navigate(`/tasks?highlight=${id}`);
     onClose();
+    // ✅ Close parent dropdown
+    if (onCloseDropdown) onCloseDropdown();
   };
 
   const openGmail = () => {

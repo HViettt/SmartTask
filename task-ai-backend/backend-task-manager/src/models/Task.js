@@ -1,6 +1,14 @@
 
 const mongoose = require('mongoose');
 
+// Chuẩn hóa tiêu đề để so sánh trùng lặp
+const normalizeTitle = (title = '') =>
+  title
+    .toString()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
 const taskSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -11,6 +19,8 @@ const taskSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
   deadline: { type: Date, required: true },
+  deadlineTime: { type: String, default: '23:59' },
+  normalizedTitle: { type: String, index: true },
   priority: { 
     type: String, 
     enum: ['High', 'Medium', 'Low'], 
@@ -23,7 +33,7 @@ const taskSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['Todo', 'Doing', 'Done', 'Overdue'], 
+    enum: ['Todo', 'Doing', 'Done'], 
     default: 'Todo' 
   },
   notes: { type: String },
@@ -39,5 +49,12 @@ const taskSchema = new mongoose.Schema({
 // Create indexes for performance as per ERD
 taskSchema.index({ userId: 1, status: 1 });
 taskSchema.index({ userId: 1, deadline: 1 });
+taskSchema.index({ userId: 1, normalizedTitle: 1, deadline: 1 });
+
+// Ensure normalized title is always stored for duplicate detection
+taskSchema.pre('save', function(next) {
+  this.normalizedTitle = normalizeTitle(this.title);
+  next();
+});
 
 module.exports = mongoose.model('Task', taskSchema);

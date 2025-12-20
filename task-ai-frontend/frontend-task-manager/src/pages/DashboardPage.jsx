@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard.jsx';
 import { useI18n } from '../utils/i18n';
+import { isTaskExpired, isTaskDueSoon, formatDeadline } from '../utils/deadlineHelpers.js';
 
 export const Dashboard = () => {
   const { tasks, fetchTasks } = useTaskStore();
@@ -89,14 +90,8 @@ export const Dashboard = () => {
     });
   }, [tasks, timeFilter]);
 
-  const isOverdue = (task) => {
-    if (!task.deadline) return false;
-    const deadlineDate = new Date(task.deadline);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    deadlineDate.setHours(0, 0, 0, 0);
-    return deadlineDate < today && task.status !== TaskStatus.DONE;
-  };
+  // ✅ Sử dụng helper function thay vì logic inline
+  // Đã refactor để maintainable hơn
 
   const isCompletedToday = (task) => {
     if (!task.completedAt) return false;
@@ -119,8 +114,8 @@ export const Dashboard = () => {
       t.status !== TaskStatus.DONE
     ).length;
 
-    // Task quá hạn
-    const overdueTasks = filteredTasks.filter(isOverdue).length;
+    // Task quá hạn - dùng helper function
+    const overdueTasks = filteredTasks.filter(isTaskExpired).length;
 
     // Task hoàn thành hôm nay
     const completedToday = filteredTasks.filter(isCompletedToday).length;
@@ -145,18 +140,11 @@ export const Dashboard = () => {
     { name: t('statusLabels.done'), value: stats.done, color: '#22c55e' },
   ];
 
-  // Tasks due soon (next 3 days)
+  // Tasks due soon (next 72 hours) - dùng helper function
   const upcomingTasks = useMemo(() => {
-    const today = new Date();
-    const threeDaysLater = new Date();
-    threeDaysLater.setDate(today.getDate() + 3);
-
     return filteredTasks
       .filter(t => t.status !== TaskStatus.DONE)
-      .filter(t => {
-        const d = new Date(t.deadline);
-        return d >= today && d <= threeDaysLater;
-      })
+      .filter(t => isTaskDueSoon(t, 72)) // 72 giờ = 3 ngày
       .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
       .slice(0, 5);
   }, [filteredTasks]);
@@ -201,7 +189,7 @@ export const Dashboard = () => {
       case 'done':
         return filteredTasks.filter(t => t.status === TaskStatus.DONE);
       case 'overdue':
-        return filteredTasks.filter(isOverdue);
+        return filteredTasks.filter(isTaskExpired); // ✅ Dùng helper function
       case 'highPriority':
         return filteredTasks.filter(t => t.priority === TaskPriority.HIGH && t.status !== TaskStatus.DONE);
       case 'completedToday':
@@ -244,7 +232,7 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-enter">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('dashboard.title')}</h1>
         <div className="text-sm text-gray-500 dark:text-gray-400">

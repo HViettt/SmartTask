@@ -96,8 +96,9 @@ app.use(
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ✅ Tăng giới hạn payload size cho upload ảnh (10MB)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================================================
 // API ROUTES - ĐỊNH NGHĨA ROUTES CỦA API

@@ -198,6 +198,8 @@ export const useAuthStore = create((set, get) => ({
             const { token, user } = res.data;
             setToken(token);
             setUserData(user);
+            // ✅ Set flag để Layout hiển thị toast deadline khi login
+            sessionStorage.setItem('justLoggedIn', 'true');
             // Reset state task cho tài khoản mới rồi fetch lại
             try {
                 const taskStore = useTaskStore.getState();
@@ -224,6 +226,8 @@ export const useAuthStore = create((set, get) => ({
             const { token, user } = res.data;
             setToken(token);
             setUserData(user);
+            // ✅ Set flag để Layout hiển thị toast deadline khi login
+            sessionStorage.setItem('justLoggedIn', 'true');
             // Reset state task cho tài khoản mới rồi fetch lại
             try {
                 const taskStore = useTaskStore.getState();
@@ -288,6 +292,13 @@ export const useAuthStore = create((set, get) => ({
         } catch (e) {
             // Bỏ qua nếu task store chưa sẵn sàng
         }
+    },
+
+    // CẬP NHẬT THÔNG TIN NGƯỜI DÙNG (sau khi update profile)
+    updateUserInfo: (userData) => {
+        // Đồng bộ dữ liệu người dùng vào localStorage và Zustand state
+        setUserData(userData);
+        set({ user: userData });
     },
 
     // TRẠNG THÁI & HÀNH ĐỘNG QUẢN LÝ TASK

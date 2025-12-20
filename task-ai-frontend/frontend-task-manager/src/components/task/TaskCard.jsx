@@ -24,7 +24,7 @@
  */
 
 import React, { useState } from 'react';
-import { toast } from 'react-hot-toast';
+import { showToast } from '../../utils/toastUtils';
 import { 
   Check, Calendar, Trash2, Edit, CheckCircle2, StickyNote, Sparkles
 } from 'lucide-react';
@@ -32,7 +32,7 @@ import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 import { ConfirmDialog } from '../common/ConfirmDialog.jsx';
 
-export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail }) => {
+export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail, isHighlighted = false }) => {
   const { t, locale } = useI18n();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -77,13 +77,13 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     try {
       await onUpdate(task._id, { status: newStatus });
       const titleSuffix = task.title ? ` "${task.title}"` : '';
-      toast.success(
+      showToast.success(
         newStatus === TaskStatus.DONE
           ? `${t('tasks.toasts.statusDone')}${titleSuffix}`
           : `${t('tasks.toasts.statusReopen')}${titleSuffix}`
       );
     } catch (err) {
-      toast.error(t('tasks.toasts.statusError'));
+      showToast.error(t('tasks.toasts.statusError'));
     }
   };
 
@@ -91,9 +91,9 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     try {
       await onUpdate(task._id, { status: TaskStatus.DONE });
       const titleSuffix = task.title ? ` "${task.title}"` : '';
-      toast.success(`${t('tasks.toasts.statusDone')}${titleSuffix}`);
+      showToast.success(`${t('tasks.toasts.statusDone')}${titleSuffix}`);
     } catch (err) {
-      toast.error(t('tasks.toasts.statusError'));
+      showToast.error(t('tasks.toasts.statusError'));
     }
   };
 
@@ -103,9 +103,9 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
       try {
         await onUpdate(task._id, { status: TaskStatus.DOING });
         const titleSuffix = task.title ? ` "${task.title}"` : '';
-        toast.success(`${t('tasks.toasts.statusStart')}${titleSuffix}`);
+        showToast.success(`${t('tasks.toasts.statusStart')}${titleSuffix}`);
       } catch (err) {
-        toast.error(t('tasks.toasts.statusError'));
+        showToast.error(t('tasks.toasts.statusError'));
       }
     }
   };
@@ -116,9 +116,9 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
       try {
         await onUpdate(task._id, { status: TaskStatus.DOING });
         const titleSuffix = task.title ? ` "${task.title}"` : '';
-        toast.success(`${t('tasks.toasts.statusReopen')}${titleSuffix}`);
+        showToast.success(`${t('tasks.toasts.statusReopen')}${titleSuffix}`);
       } catch (err) {
-        toast.error(t('tasks.toasts.statusError'));
+        showToast.error(t('tasks.toasts.statusError'));
       }
     }
   };
@@ -128,10 +128,10 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     try {
       const deleted = await onDelete(task._id);
       const deletedSuffix = deleted?.title ? ` "${deleted.title}"` : '';
-      toast.success(`${t('tasks.toasts.deleted')}${deletedSuffix}`.trim());
+      showToast.success(`${t('tasks.toasts.deleted')}${deletedSuffix}`.trim());
       setShowDeleteConfirm(false);
     } catch (err) {
-      toast.error(t('tasks.toasts.deleteError'));
+      showToast.error(t('tasks.toasts.deleteError'));
     } finally {
       setIsDeleting(false);
     }
@@ -141,10 +141,12 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     <>
       {/* Main Task Card */}
       <div 
-        className={`group relative bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border transition-all hover:shadow-md ${
-          task.status === TaskStatus.DONE 
-            ? 'border-emerald-100 dark:border-emerald-900/30 opacity-75' 
-            : 'border-gray-100 dark:border-gray-700'
+        className={`group relative bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border card-hover ${
+          isHighlighted 
+            ? 'border-indigo-500 dark:border-indigo-400 ring-4 ring-indigo-100 dark:ring-indigo-900/50 shadow-lg' 
+            : task.status === TaskStatus.DONE 
+              ? 'border-emerald-100 dark:border-emerald-900/30 opacity-75' 
+              : 'border-gray-100 dark:border-gray-700'
         }`}
       >
       {/* AI Reason Badge */}
@@ -227,12 +229,13 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
             </span>
 
             <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border ${
-              new Date(task.deadline) < new Date() && task.status !== TaskStatus.DONE
+              task.computedStatus === 'overdue' || task.status === TaskStatus.OVERDUE
                 ? 'text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
                 : 'text-gray-600 bg-gray-100 border-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:border-gray-600'
             }`}>
               <Calendar size={13} />
-              {new Date(task.deadline).toLocaleDateString(locale)}
+              {new Date(task.deadline).toLocaleDateString(locale)} 
+              {task.deadlineTime ? ` ${task.deadlineTime}` : ' 23:59'}
             </span>
 
             <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getComplexityConfig(task.complexity).color}`}>

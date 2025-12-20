@@ -47,6 +47,7 @@ const dictionaries = {
     nav: {
       dashboard: 'Dashboard',
       tasks: 'Công việc',
+      profile: 'Hồ sơ',
       notifications: 'Thông báo',
       settings: 'Cài đặt',
       changeLanguage: 'Đổi ngôn ngữ',
@@ -189,6 +190,7 @@ const dictionaries = {
     },
     alerts: {
       overdue: 'Bạn có {count} công việc quá hạn!',
+      dueSoon: 'Có {count} công việc sắp hết hạn (còn ≤ 24 giờ)',
       upcoming: 'Có {count} công việc sắp đến hạn trong 48 giờ tới'
     },
     notifications: {
@@ -335,6 +337,7 @@ const dictionaries = {
     nav: {
       dashboard: 'Dashboard',
       tasks: 'Tasks',
+      profile: 'Profile',
       notifications: 'Notifications',
       settings: 'Settings',
       changeLanguage: 'Change Language',

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
+import { showToast } from '../../utils/toastUtils';
 import { 
   LayoutDashboard, 
   ListTodo, 
@@ -10,7 +10,8 @@ import {
   Sun, 
   X,
   Globe,
-  Settings
+  Settings,
+  User
 } from 'lucide-react';
 import { useAuthStore } from '../../features/useStore';
 import { useTaskStore } from '../../features/taskStore';
@@ -19,6 +20,7 @@ import { NotificationCenter } from '../notification/NotificationCenter';
 import { NotificationSettings } from '../notification/NotificationSettings';
 import api from '../../services/api';
 import { useI18n } from '../../utils/i18n';
+import { isTaskExpired, isTaskDueSoon } from '../../utils/deadlineHelpers';
 
 export const Layout = () => {
   const { user, logout, darkMode, toggleDarkMode, toggleLanguage } = useAuthStore();
@@ -34,9 +36,13 @@ export const Layout = () => {
     navigate('/login');
   };
 
-  // Check deadline warnings ONCE on app load
+  // Check deadline warnings ONCE when LOGIN (not on reload)
   useEffect(() => {
     const checkDeadlineOnce = async () => {
+      // ✅ Chỉ show toast khi LOGIN, không show khi reload
+      const isJustLoggedIn = sessionStorage.getItem('justLoggedIn');
+      if (!isJustLoggedIn) return;
+      
       if (hasShownDeadlineAlert) return;
       
       // Fetch tasks if not loaded
@@ -54,35 +60,20 @@ export const Layout = () => {
         // ✅ Ensure tasks is an array
         if (!Array.isArray(tasks)) return;
 
-        const now = new Date();
-        const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-        
-        const upcomingSoon = tasks.filter(t => {
-          if (t.status === TaskStatus.DONE) return false;
-          const deadline = new Date(t.deadline);
-          return deadline > now && deadline <= in48Hours;
-        });
+        // ✅ Dùng helper functions thay vì manual parsing
+        const overdue = tasks.filter(isTaskExpired);
+        const dueSoon24h = tasks.filter(t => isTaskDueSoon(t, 24)); // Còn ≤ 24 giờ
 
-        const overdue = tasks.filter(t => {
-          if (t.status === TaskStatus.DONE) return false;
-          const deadline = new Date(t.deadline);
-          return deadline < now;
-        });
-
-        if (overdue.length > 0) {
-          toast.error(`🚨 ${t('alerts.overdue', { count: overdue.length })}`, {
-            duration: 5000,
-            onClick: () => navigate('/tasks')
-          });
-        } else if (upcomingSoon.length > 0) {
-          toast(`⏰ ${t('alerts.upcoming', { count: upcomingSoon.length })}`, {
-            icon: '⚠️',
-            duration: 5000,
-            onClick: () => navigate('/tasks')
-          });
-        }
-
+        // ✅ Clear flag NGAY để tránh toast spam khi navigate
+        sessionStorage.removeItem('justLoggedIn');
         setHasShownDeadlineAlert(true);
+        
+        // Show toast theo priority: overdue > due soon
+        if (overdue.length > 0) {
+          showToast.error(t('alerts.overdue', { count: overdue.length }));
+        } else if (dueSoon24h.length > 0) {
+          showToast.warning(t('alerts.dueSoon', { count: dueSoon24h.length }));
+        }
       } catch (error) {
         console.error('Lỗi kiểm tra deadline:', error);
       }
@@ -91,7 +82,7 @@ export const Layout = () => {
     // Small delay to ensure tasks are loaded
     const timer = setTimeout(checkDeadlineOnce, 1000);
     return () => clearTimeout(timer);
-  }, [tasks, hasShownDeadlineAlert, fetchTasks, navigate]);
+  }, [tasks, hasShownDeadlineAlert, fetchTasks, t]);
 
   const NavItem = ({ to, icon: Icon, label }) => (
     <NavLink
@@ -126,6 +117,7 @@ export const Layout = () => {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           <NavItem to="/dashboard" icon={LayoutDashboard} label={t('nav.dashboard')} />
           <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
+          <NavItem to="/profile" icon={User} label={t('nav.profile')} />
         </nav>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -219,6 +211,7 @@ export const Layout = () => {
              <nav className="space-y-2 flex-1">
                 <NavItem to="/dashboard" icon={LayoutDashboard} label={t('nav.dashboard')} />
                 <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
+                <NavItem to="/profile" icon={User} label={t('nav.profile')} />
              </nav>
              <button 
                 onClick={handleLogout}

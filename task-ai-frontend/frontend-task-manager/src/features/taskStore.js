@@ -50,12 +50,15 @@ export const useTaskStore = create((set, get) => ({
 
       const res = await api.post("/tasks", finalPayload);
 
+      // ✅ Backend returns { success, data, message }
+      const newTask = res.data.data || res.data;
+
       set((state) => ({
-        tasks: [res.data, ...state.tasks],
+        tasks: [newTask, ...state.tasks],
         isLoading: false,
       }));
 
-      return res.data; // Trả về task vừa tạo để hiện toast
+      return newTask; // Trả về task vừa tạo để hiện toast
     } catch (err) {
       // Ghi log đầy đủ để dễ debug (status, body)
       // Trích xuất thông báo rõ ràng cho người dùng
@@ -89,7 +92,9 @@ export const useTaskStore = create((set, get) => ({
 
     try {
       const res = await api.put(`/tasks/${id}`, updates);
-      return res.data; // Trả về task đã cập nhật để hiện toast
+      // ✅ Backend returns { success, data, message }
+      const updatedTask = res.data.data || res.data;
+      return updatedTask; // Trả về task đã cập nhật để hiện toast
     } catch (err) {
       set({ tasks: prev, error: "Cập nhật thất bại." });
       throw err;
@@ -124,9 +129,10 @@ export const useTaskStore = create((set, get) => ({
   suggestTasks: async () => {
     try {
       const res = await api.post("/tasks/ai-suggest");
-      return res.data;
+      // ✅ Backend returns { success, data: { sortedIds, reasoning }, message }
+      return res.data.data || res.data;
     } catch (err) {
-      throw new Error("AI suggest failed");
+      throw new Error(err.response?.data?.message || "AI suggest failed");
     }
   },
 }));

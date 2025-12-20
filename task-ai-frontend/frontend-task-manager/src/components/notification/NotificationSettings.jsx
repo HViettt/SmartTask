@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, Settings } from 'lucide-react';
 import api from '../../services/api';
-import { toast } from 'react-hot-toast';
+import { showToast } from '../../utils/toastUtils';
 import { useI18n } from '../../utils/i18n';
 
 export const NotificationSettings = ({ isOpen, onClose }) => {
@@ -28,7 +28,7 @@ export const NotificationSettings = ({ isOpen, onClose }) => {
       setSettings(res.data.notificationSettings);
     } catch (error) {
       console.error('Lỗi tải cài đặt:', error);
-      toast.error(t('notifications.loadError'));
+      showToast.error(t('notifications.loadError'));
     } finally {
       setLoading(false);
     }
@@ -38,11 +38,11 @@ export const NotificationSettings = ({ isOpen, onClose }) => {
     try {
       setSaving(true);
       await api.put('/user/settings', settings);
-      toast.success(t('notifications.saveSuccess'));
+      showToast.success(t('notifications.saveSuccess'));
       onClose();
     } catch (error) {
       console.error('Lỗi lưu cài đặt:', error);
-      toast.error(t('notifications.saveError'));
+      showToast.error(t('notifications.saveError'));
     } finally {
       setSaving(false);
     }

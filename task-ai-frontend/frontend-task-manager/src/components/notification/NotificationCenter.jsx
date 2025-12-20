@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Settings } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { showToast } from '../../utils/toastUtils';
 import { NotificationList } from './NotificationList';
 import { NotificationDetailModal } from './NotificationDetailModal';
 import { NotificationSettings } from './NotificationSettings';
@@ -16,6 +16,15 @@ export const NotificationCenter = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const previousUnreadRef = useRef(0);
   const { t } = useI18n();
+
+  // Helper: check nếu notification "mới" (được tạo trong 10 giây gần nhất)
+  const isRecentlyCreated = (notification) => {
+    if (!notification.createdAt) return false;
+    const createdTime = new Date(notification.createdAt).getTime();
+    const now = new Date().getTime();
+    const timeDiff = (now - createdTime) / 1000; // seconds
+    return timeDiff < 10; // notification trong vòng 10s gần nhất là "mới"
+  };
 
   // Fetch notifications
   const fetchNotifications = async (options = { silent: false }) => {
@@ -37,15 +46,26 @@ export const NotificationCenter = () => {
       if (!options.silent) {
         const prev = previousUnreadRef.current;
         const next = filteredUnread;
+        
+        // Chỉ show toast nếu: (1) lần đầu load (prev=0) VÀ (2) có unread notification "mới"
         if (!prev && next > 0) {
-          toast(t('notifications.newCount', { count: next }), { icon: '🔔' });
+          const hasRecentNotifications = filtered.some(n => !n.read && isRecentlyCreated(n));
+          if (hasRecentNotifications) {
+            showToast.info(t('notifications.newCount', { count: next }));
+          }
         }
+        
+        // Lần sau: chỉ show toast nếu có thêm notification mới thực sự
         if (prev && next > prev) {
-          const newest = filtered.find((n) => !n.read) || filtered[0];
-          const alertMessage = newest
-            ? `${t('notifications.moreCount', { count: next - prev })} ${newest.title || ''}`.trim()
-            : t('notifications.newGeneric', { count: next - prev });
-          toast(alertMessage, { icon: '🔔' });
+          const newNotifications = filtered.filter(n => !n.read).slice(0, next - prev);
+          const hasRecentInNew = newNotifications.some(n => isRecentlyCreated(n));
+          if (hasRecentInNew) {
+            const newest = filtered.find((n) => !n.read) || filtered[0];
+            const alertMessage = newest
+              ? `${t('notifications.moreCount', { count: next - prev })} ${newest.title || ''}`.trim()
+              : t('notifications.newGeneric', { count: next - prev });
+            showToast.info(alertMessage);
+          }
         }
         previousUnreadRef.current = next;
       }
@@ -155,6 +175,7 @@ export const NotificationCenter = () => {
         <NotificationDetailModal 
           notification={selectedNotification}
           onClose={() => setSelectedNotification(null)}
+          onCloseDropdown={() => setIsOpen(false)}
         />
       )}
 

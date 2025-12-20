@@ -20,6 +20,25 @@ const Task = require('../models/Task');
 const Notification = require('../models/Notification');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const aiService = require('../utils/aiService');
+const { getDeadlineStatus, isValidDeadlineTime, isTaskOverdue } = require('../utils/deadlineHelper');
+
+// Helpers
+const normalizeTitle = (title = '') =>
+  title
+    .toString()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+const getDayRange = (deadline) => {
+  if (!deadline) return {};
+  const date = new Date(deadline);
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCHours(23, 59, 59, 999);
+  return { start, end };
+};
 
 /**
  * 📌 GET /api/tasks
@@ -32,10 +51,18 @@ exports.getTasks = async (req, res) => {
   try {
     // ✅ Lấy công việc sắp xếp theo ngày tạo mới nhất
     const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    
+    // Add computed deadline status to each task
+    const tasksWithStatus = tasks.map(task => {
+      const taskObj = task.toObject();
+      taskObj.computedStatus = getDeadlineStatus(taskObj);
+      return taskObj;
+    });
+    
     res.json({
       success: true,
-      data: tasks,
-      count: tasks.length
+      data: tasksWithStatus,
+      count: tasksWithStatus.length
     });
   } catch (error) {
     res.status(500).json({ 
@@ -62,9 +89,54 @@ exports.getTasks = async (req, res) => {
  */
 exports.createTask = async (req, res) => {
   try {
+    // Validate bắt buộc
+    if (!req.body?.title || !req.body?.deadline) {
+      return res.status(400).json({
+        success: false,
+        code: 'TASK_VALIDATION_ERROR',
+        message: 'Thiếu tiêu đề hoặc deadline'
+      });
+    }
+
+    // Validate deadlineTime format if provided
+    if (req.body.deadlineTime && !isValidDeadlineTime(req.body.deadlineTime)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_DEADLINE_TIME',
+        message: 'Định dạng giờ hết hạn không hợp lệ. Sử dụng định dạng HH:MM'
+      });
+    }
+
+    const normalizedTitle = normalizeTitle(req.body.title);
+    const { start, end } = getDayRange(req.body.deadline);
+
+    // Kiểm tra trùng tiêu đề trong cùng ngày với cùng user
+    if (start && end) {
+      const duplicate = await Task.findOne({
+        userId: req.user._id,
+        normalizedTitle,
+        deadline: { $gte: start, $lte: end }
+      });
+
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          code: 'TASK_DUPLICATE',
+          message: 'Tiêu đề công việc đã tồn tại trong ngày này. Vui lòng đổi tên hoặc chọn ngày khác.',
+          data: {
+            existingTaskId: duplicate._id,
+            status: duplicate.status,
+            deadline: duplicate.deadline
+          }
+        });
+      }
+    }
+
     const newTask = new Task({
       ...req.body,
-      userId: req.user._id
+      userId: req.user._id,
+      normalizedTitle,
+      deadlineTime: req.body.deadlineTime || '23:59'
     });
     const savedTask = await newTask.save();
     
@@ -81,6 +153,7 @@ exports.createTask = async (req, res) => {
             _id: savedTask._id,
             title: savedTask.title,
             deadline: savedTask.deadline,
+            deadlineTime: savedTask.deadlineTime,
             priority: savedTask.priority,
             complexity: savedTask.complexity,
             status: savedTask.status
@@ -91,9 +164,13 @@ exports.createTask = async (req, res) => {
       console.warn('⚠️ Lỗi ghi thông báo task mới:', notifyErr.message);
     }
 
+    // Add computed status to response
+    const taskObj = savedTask.toObject();
+    taskObj.computedStatus = getDeadlineStatus(taskObj);
+
     res.status(201).json({
       success: true,
-      data: savedTask,
+      data: taskObj,
       message: 'Công việc được tạo thành công'
     });
   } catch (error) {
@@ -113,8 +190,65 @@ exports.createTask = async (req, res) => {
  */
 exports.updateTask = async (req, res) => {
   try {
+    const currentTask = await Task.findOne({ _id: req.params.id, userId: req.user._id });
+
+    if (!currentTask) {
+      return res.status(404).json({
+        success: false,
+        message: 'Công việc không tồn tại'
+      });
+    }
+
+    // Validate deadlineTime format if provided
+    if (req.body.deadlineTime && !isValidDeadlineTime(req.body.deadlineTime)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_DEADLINE_TIME',
+        message: 'Định dạng giờ hết hạn không hợp lệ. Sử dụng định dạng HH:MM'
+      });
+    }
+
     const { status } = req.body;
     let updates = { ...req.body };
+
+    // Chuẩn hóa tiêu đề nếu có thay đổi
+    const nextNormalizedTitle = updates.title
+      ? normalizeTitle(updates.title)
+      : currentTask.normalizedTitle;
+
+    // Kiểm tra trùng lặp khi đổi title hoặc deadline
+    if (updates.title || updates.deadline) {
+      const targetDeadline = updates.deadline
+        ? new Date(updates.deadline)
+        : currentTask.deadline;
+      const { start, end } = getDayRange(targetDeadline);
+
+      if (start && end) {
+        const duplicate = await Task.findOne({
+          _id: { $ne: currentTask._id },
+          userId: req.user._id,
+          normalizedTitle: nextNormalizedTitle,
+          deadline: { $gte: start, $lte: end }
+        });
+
+        if (duplicate) {
+          return res.status(409).json({
+            success: false,
+            code: 'TASK_DUPLICATE',
+            message: 'Tiêu đề công việc đã tồn tại trong ngày này. Vui lòng đổi tên hoặc chọn ngày khác.',
+            data: {
+              existingTaskId: duplicate._id,
+              status: duplicate.status,
+              deadline: duplicate.deadline
+            }
+          });
+        }
+      }
+    }
+
+    if (updates.title) {
+      updates.normalizedTitle = nextNormalizedTitle;
+    }
 
     // ✅ Nếu đánh dấu hoàn thành, ghi lại thời gian hoàn thành
     if (status === 'Done') {
@@ -129,13 +263,6 @@ exports.updateTask = async (req, res) => {
       updates,
       { new: true }
     );
-
-    if (!task) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Công việc không tồn tại' 
-      });
-    }
 
     // 🔔 Tạo thông báo cho thay đổi quan trọng
     try {
@@ -202,7 +329,11 @@ exports.updateTask = async (req, res) => {
 
     res.json({
       success: true,
-      data: task,
+      data: (() => {
+        const taskObj = task.toObject();
+        taskObj.computedStatus = getDeadlineStatus(taskObj);
+        return taskObj;
+      })(),
       message: 'Công việc được cập nhật thành công'
     });
   } catch (error) {

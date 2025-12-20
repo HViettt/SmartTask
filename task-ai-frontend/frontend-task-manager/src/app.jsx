@@ -50,11 +50,13 @@ import { useAuthStore } from './features/useStore.js';
 import { Layout } from './components/layout/Layout.jsx';
 import { Dashboard } from './pages/DashboardPage.jsx';
 import { Task } from './pages/Task.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 import { LoginPage } from './components/auth/LoginPage.jsx';
 import { RegisterPage } from './components/auth/Register.jsx';
 import { VerifyEmailPage } from './components/auth/VerifyEmail.jsx';
 import { ForgotPasswordPage } from './components/auth/ForgotPassword.jsx';
 import { ResetPasswordPage } from './components/auth/ResetPasswordPage.jsx';
+import { ToasterProvider } from './components/ui/ToasterProvider.jsx';
 
 /**
  * ProtectedRoute: Ensure user is authenticated before rendering
@@ -121,7 +123,9 @@ const App = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <ToasterProvider />
+      <Routes>
       {/* Auth Routes - Không cần protect vì chúng là public */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -141,11 +145,13 @@ const App = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="tasks" element={<Task />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
       {/* Fallback: Nếu không match route nào */}
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
     </Routes>
+    </>
   );
 };
 

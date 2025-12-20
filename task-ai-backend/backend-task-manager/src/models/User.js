@@ -4,10 +4,11 @@ const crypto = require('crypto'); // Cần cho token
 
 const userSchema = new mongoose.Schema({
   googleId: { type: String, unique: true, sparse: true }, 
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true }, // Thêm lowercase/trim
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
-  password: { type: String, select: false }, // Mật khẩu không được chọn mặc định khi query
+  password: { type: String, select: false },
   avatar: { type: String },
+  hasPassword: { type: Boolean, default: false },
   isVerified: { type: Boolean, default: false },
   verificationToken: { type: String },
   resetPasswordToken: { type: String },
@@ -39,9 +40,10 @@ userSchema.pre('save', async function(next) {
         return next();
     }
 
-    // 3. Nếu có mật khẩu mới, băm nó.
+    // 3. Nếu có mật khẩu mới, băm nó và set hasPassword flag.
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    this.hasPassword = true;
     next();
 });
 

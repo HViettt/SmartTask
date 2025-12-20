@@ -31,7 +31,6 @@ import ReactDOM from "react-dom/client";
 import App from "./app.jsx";
 import { BrowserRouter } from "react-router-dom";
 import { I18nProvider } from "./utils/i18n";
-import { Toaster } from "react-hot-toast";
 import "./index.css";
 
 // ============================================================================
@@ -67,11 +66,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <I18nProvider>
         <App />
       </I18nProvider>
-      <Toaster position="top-right" toastOptions={{
-        style: { background: '#0f172a', color: '#e2e8f0', marginTop: '70px' },
-        success: { iconTheme: { primary: '#22c55e', secondary: '#0f172a' } },
-        error: { iconTheme: { primary: '#ef4444', secondary: '#0f172a' } }
-      }} />
     </BrowserRouter>
   </React.StrictMode>
 );

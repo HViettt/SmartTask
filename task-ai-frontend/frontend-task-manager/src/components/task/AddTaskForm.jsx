@@ -10,7 +10,9 @@ export const AddTaskForm = ({
   formData, 
   setFormData, 
   editingTask,
-  isLoading 
+  isLoading,
+  titleError,
+  onTitleChange
 }) => {
   const { t } = useI18n();
   if (!isOpen) return null;
@@ -72,10 +74,24 @@ export const AddTaskForm = ({
               type="text"
               required
               value={formData.title}
-              onChange={e => setFormData({...formData, title: e.target.value})}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white transition-all outline-none"
+              onChange={e => {
+                const value = e.target.value;
+                if (onTitleChange) {
+                  onTitleChange(value);
+                } else {
+                  setFormData({ ...formData, title: value });
+                }
+              }}
+              className={`w-full px-4 py-2.5 rounded-lg transition-all outline-none border
+                ${titleError
+                  ? 'border-red-400 dark:border-red-500 focus:ring-2 focus:ring-red-300 focus:border-red-500'
+                  : 'border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'}
+                dark:bg-gray-900 dark:text-white`}
               placeholder={t('tasks.form.titlePlaceholder')}
             />
+            {titleError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{titleError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-5">
@@ -89,6 +105,13 @@ export const AddTaskForm = ({
                 value={formData.deadline}
                 onChange={e => setFormData({...formData, deadline: e.target.value})}
                 className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white outline-none"
+              />
+              <input
+                type="time"
+                value={formData.deadlineTime || '23:59'}
+                onChange={e => setFormData({...formData, deadlineTime: e.target.value})}
+                className="w-full mt-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-900 dark:text-white outline-none"
+                title="Giờ hết hạn (mặc định 23:59)"
               />
             </div>
             <div>
