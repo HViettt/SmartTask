@@ -181,18 +181,18 @@ const upsertSystemNotification = async (userId, type, payload = {}) => {
 };
 
 // Đồng bộ thông báo EMAIL_SENT từ bản ghi EmailDigestLog mới nhất
+// ⚠️ KHÔNG hiển thị số lượng email do giới hạn kỹ thuật Gmail
+// Chỉ thông báo trạng thái gửi thành công/thất bại
 const syncEmailNotificationFromLog = async (log) => {
     if (!log) return;
-    const upcoming = Number(log.upcomingCount || 0);
-    const overdue = Number(log.overdueCount || 0);
-    const total = upcoming + overdue;
-    const severity = log.status === 'failed'
-        ? 'warn'
-        : (overdue > 0 ? 'critical' : (upcoming > 0 ? 'warn' : 'info'));
+    const severity = log.status === 'failed' ? 'warn' : 'info';
+    const message = log.status === 'failed'
+        ? 'Email nhắc việc gặp lỗi khi gửi'
+        : 'Hệ thống đã gửi email nhắc việc đến hộp thư của bạn';
 
     await upsertSystemNotification(log.userId, NOTIFICATION_TYPES.EMAIL_SENT, {
-        title: 'Đã gửi thông báo qua Gmail',
-        message: `Email ngày ${log.digestDate} đã được gửi`,
+        title: 'Thông báo qua Email',
+        message,
         severity
     });
 };

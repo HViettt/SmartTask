@@ -4,12 +4,10 @@ export const formatNotificationMessage = (notification, t) => {
   const { type, subtype, message = '', metadata = {} } = notification;
   const trimmed = (message || '').toString();
 
-  // Email digest: dùng counts khi có
+  // Email notification: hiển thị văn bản tĩnh (không count do giới hạn Gmail)
   if (type === 'EMAIL_SENT') {
-    const overdue = Number(metadata.overdueCount ?? (Array.isArray(metadata.overdue) ? metadata.overdue.length : 0)) || 0;
-    const upcoming = Number(metadata.upcomingCount ?? (Array.isArray(metadata.upcoming) ? metadata.upcoming.length : 0)) || 0;
-    const total = Number(metadata.totalTasks ?? overdue + upcoming) || overdue + upcoming;
-    return t('notifications.templates.emailDigest', { total, overdue, upcoming });
+    // Dùng message từ backend (đã có văn bản phù hợp)
+    return trimmed || t('notifications.templates.emailSent');
   }
 
   // DUE_SOON: ưu tiên hiển thị count

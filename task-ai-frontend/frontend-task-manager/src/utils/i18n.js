@@ -203,6 +203,7 @@ const dictionaries = {
       overdueMessage: 'Bạn có {count} công việc quá hạn',
       templates: {
         addedToList: 'đã được thêm vào danh sách của bạn',
+        emailSent: 'Hệ thống đã gửi email nhắc việc đến hộp thư của bạn',
         emailDigest: '{total} công việc: {overdue} quá hạn, {upcoming} sắp hết hạn',
         deadlineSoonCount: '{count} công việc sắp đến hạn',
         overdueCount: '{count} công việc quá hạn',
@@ -502,6 +503,7 @@ const dictionaries = {
       overdueMessage: 'You have {count} tasks that are overdue',
       templates: {
         addedToList: 'has been added to your list',
+        emailSent: 'System has sent task reminders to your email',
         emailDigest: '{total} tasks: {overdue} overdue, {upcoming} due soon',
         deadlineSoonCount: '{count} tasks are due soon',
         overdueCount: '{count} tasks are overdue',
