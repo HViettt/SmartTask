@@ -228,9 +228,9 @@ export const AddTaskForm = ({
               disabled={isLoading}
               className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
-              {isLoading && <Loader2 size={16} className="animate-spin"/>}
               {isLoading ? (
                 <>
+                  {/* Hiển thị 1 icon loading duy nhất khi submit */}
                   <Loader2 size={16} className="animate-spin" />
                   {t('common.loading')}
                 </>

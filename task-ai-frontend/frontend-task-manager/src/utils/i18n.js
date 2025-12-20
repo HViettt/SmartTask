@@ -164,7 +164,7 @@ const dictionaries = {
         last30: '30 ngày gần đây'
       },
       statusTitle: 'Trạng thái công việc',
-      upcomingTitle: 'Sắp đến hạn (3 ngày)',
+      upcomingTitle: 'Sắp đến hạn',
       noUpcoming: 'Không có công việc nào sắp đến hạn.',
       stats: {
         total: 'Tổng công việc',
@@ -199,6 +199,8 @@ const dictionaries = {
       newCount: 'Bạn có {count} thông báo chưa đọc',
       moreCount: 'Bạn có {count} thông báo mới:',
       newGeneric: 'Bạn có {count} thông báo mới.',
+      dueSoonMessage: 'Bạn có {count} công việc sắp đến hạn',
+      overdueMessage: 'Bạn có {count} công việc quá hạn',
       templates: {
         addedToList: 'đã được thêm vào danh sách của bạn',
         emailDigest: '{total} công việc: {overdue} quá hạn, {upcoming} sắp hết hạn',
@@ -261,6 +263,14 @@ const dictionaries = {
         taskStatus: {
           title: 'Thông báo trạng thái task',
           desc: 'Lưu thông báo khi task thay đổi trạng thái'
+        },
+        notifyOnDecrease: {
+          title: 'Thông báo khi giảm',
+          desc: 'Hiện toast nhẹ khi số lượng task giảm (không bật badge)'
+        },
+        notifyOnZero: {
+          title: 'Thông báo khi về 0',
+          desc: 'Thông báo khi một nhóm về 0 công việc'
         },
         saving: 'Đang lưu...',
         save: 'Lưu thay đổi',
@@ -454,7 +464,7 @@ const dictionaries = {
         last30: 'Last 30 days'
       },
       statusTitle: 'Task status',
-      upcomingTitle: 'Due soon (3 days)',
+      upcomingTitle: 'Due soon',
       noUpcoming: 'No tasks are due soon.',
       stats: {
         total: 'Total tasks',
@@ -488,6 +498,8 @@ const dictionaries = {
       newCount: 'You have {count} unread notifications',
       moreCount: 'You have {count} new notifications:',
       newGeneric: 'You have {count} new notifications.',
+      dueSoonMessage: 'You have {count} tasks due soon',
+      overdueMessage: 'You have {count} tasks that are overdue',
       templates: {
         addedToList: 'has been added to your list',
         emailDigest: '{total} tasks: {overdue} overdue, {upcoming} due soon',
@@ -550,6 +562,14 @@ const dictionaries = {
         taskStatus: {
           title: 'Task status notifications',
           desc: 'Save notifications when task status changes'
+        },
+        notifyOnDecrease: {
+          title: 'Notify on decrease',
+          desc: 'Show light toast when task count decreases (no badge)'
+        },
+        notifyOnZero: {
+          title: 'Notify on zero',
+          desc: 'Notify when a group reaches 0 tasks'
         },
         saving: 'Saving...',
         save: 'Save changes',

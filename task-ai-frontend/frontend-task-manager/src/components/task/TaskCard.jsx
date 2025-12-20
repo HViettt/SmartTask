@@ -31,6 +31,7 @@ import {
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 import { ConfirmDialog } from '../common/ConfirmDialog.jsx';
+import { isTaskExpired } from '../../utils/deadlineHelpers.js';
 
 export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail, isHighlighted = false }) => {
   const { t, locale } = useI18n();
@@ -229,7 +230,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
             </span>
 
             <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border ${
-              task.computedStatus === 'overdue' || task.status === TaskStatus.OVERDUE
+              (task.computedStatus === 'overdue' || task.status === TaskStatus.OVERDUE || isTaskExpired(task))
                 ? 'text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
                 : 'text-gray-600 bg-gray-100 border-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:border-gray-600'
             }`}>

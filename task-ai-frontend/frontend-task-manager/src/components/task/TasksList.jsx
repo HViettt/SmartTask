@@ -121,6 +121,21 @@ export const TaskList = () => {
     });
   }, [tasks, filter, searchTerm]);
 
+  // 🔽 Sắp xếp theo yêu cầu:
+  // - Chia thành 2 nhóm: chưa hoàn thành (Todo/Doing) ở trên, hoàn thành (Done) ở dưới
+  // - Mỗi nhóm đều sắp xếp theo ngày đến hạn (deadline) tăng dần
+  const sortedTasks = useMemo(() => {
+    const byDeadlineAsc = (a, b) => {
+      const ad = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+      const bd = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+      return ad - bd;
+    };
+
+    const unfinished = filteredTasks.filter(t => t.status !== TaskStatus.DONE).sort(byDeadlineAsc);
+    const finished = filteredTasks.filter(t => t.status === TaskStatus.DONE).sort(byDeadlineAsc);
+    return [...unfinished, ...finished];
+  }, [filteredTasks]);
+
   const handleOpenModal = (task) => {
     if (task) {
       setEditingTask(task);
@@ -163,10 +178,6 @@ export const TaskList = () => {
           complexity: formData.complexity,
           notes: formData.notes,
         };
-
-        // Debugging: log payload sent to backend
-        // eslint-disable-next-line no-console
-        console.info('Submitting task payload:', payload);
 
         const created = await addTask(payload);
         const titleSuffix = created?.title ? ` "${created.title}"` : '';
@@ -385,7 +396,7 @@ export const TaskList = () => {
       ) : (
         /* Task List Grid */
         <div className="grid grid-cols-1 gap-4">
-          {filteredTasks.map((task, index) => (
+          {sortedTasks.map((task, index) => (
             <div
               key={task._id}
               ref={el => taskRefs.current[task._id] = el}
@@ -405,7 +416,7 @@ export const TaskList = () => {
             </div>
           ))}
 
-          {filteredTasks.length === 0 && !isLoading && (
+          {sortedTasks.length === 0 && !isLoading && (
             <EmptyState
               title="Không có công việc nào"
               message={

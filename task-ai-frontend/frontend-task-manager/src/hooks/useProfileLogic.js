@@ -130,10 +130,6 @@ export const useProfileLogic = () => {
       
       setAvatarFile(file);
       setAvatarPreview(compressedBase64);
-      
-      // Tính kích thước sau khi nén
-      const sizeInKB = Math.round((compressedBase64.length * 0.75) / 1024);
-      console.log('Compressed image size:', sizeInKB, 'KB');
     } catch (error) {
       console.error('Image compression error:', error);
       showToast.error('Không thể xử lý ảnh');

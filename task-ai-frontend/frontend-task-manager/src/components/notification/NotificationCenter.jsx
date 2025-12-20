@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Bell, Settings } from 'lucide-react';
 import { showToast } from '../../utils/toastUtils';
 import { NotificationList } from './NotificationList';
@@ -6,6 +6,9 @@ import { NotificationDetailModal } from './NotificationDetailModal';
 import { NotificationSettings } from './NotificationSettings';
 import api from '../../services/api';
 import { useI18n } from '../../utils/i18n';
+import { useTaskStore } from '../../features/taskStore';
+
+const ALLOWED_TYPES = ['EMAIL_SENT', 'DUE_SOON', 'OVERDUE'];
 
 export const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,129 +17,100 @@ export const NotificationCenter = () => {
   const [loading, setLoading] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const previousUnreadRef = useRef(0);
   const { t } = useI18n();
+  const { tasks } = useTaskStore();
 
-  // Helper: check nếu notification "mới" (được tạo trong 10 giây gần nhất)
-  const isRecentlyCreated = (notification) => {
-    if (!notification.createdAt) return false;
-    const createdTime = new Date(notification.createdAt).getTime();
-    const now = new Date().getTime();
-    const timeDiff = (now - createdTime) / 1000; // seconds
-    return timeDiff < 10; // notification trong vòng 10s gần nhất là "mới"
-  };
+  // Tạo task signature để detect bất kỳ thay đổi nào (status, deadline, etc)
+  const taskSignature = useMemo(() => {
+    return tasks.map(t => `${t._id}-${t.status}-${t.deadline}`).join('|');
+  }, [tasks]);
 
-  // Fetch notifications
-  const fetchNotifications = async (options = { silent: false }) => {
+  const fetchNotifications = async (silent = false) => {
     try {
-      if (!options.silent) setLoading(true);
+      if (!silent) setLoading(true);
       const res = await api.get('/notifications');
-      // Filter: only keep email-sent and deadline-soon notifications
-      const all = Array.isArray(res.data.notifications) ? res.data.notifications : [];
-      const filtered = all.filter((n) =>
-        n?.type === 'email' ||
-        n?.type === 'deadline' ||
-        (n?.type === 'task-status' && n?.subtype === 'deadline-soon')
-      );
-      setNotifications(filtered);
-      const filteredUnread = filtered.filter((n) => !n.read).length;
-      setUnreadCount(filteredUnread);
+      const allNotifs = Array.isArray(res.data.notifications) ? res.data.notifications : [];
+      const filtered = allNotifs.filter((n) => ALLOWED_TYPES.includes(n?.type));
 
-       // Alert khi có thêm thông báo mới (tránh spam trên lần load đầu)
-      if (!options.silent) {
-        const prev = previousUnreadRef.current;
-        const next = filteredUnread;
-        
-        // Chỉ show toast nếu: (1) lần đầu load (prev=0) VÀ (2) có unread notification "mới"
-        if (!prev && next > 0) {
-          const hasRecentNotifications = filtered.some(n => !n.read && isRecentlyCreated(n));
-          if (hasRecentNotifications) {
-            showToast.info(t('notifications.newCount', { count: next }));
-          }
-        }
-        
-        // Lần sau: chỉ show toast nếu có thêm notification mới thực sự
-        if (prev && next > prev) {
-          const newNotifications = filtered.filter(n => !n.read).slice(0, next - prev);
-          const hasRecentInNew = newNotifications.some(n => isRecentlyCreated(n));
-          if (hasRecentInNew) {
-            const newest = filtered.find((n) => !n.read) || filtered[0];
-            const alertMessage = newest
-              ? `${t('notifications.moreCount', { count: next - prev })} ${newest.title || ''}`.trim()
-              : t('notifications.newGeneric', { count: next - prev });
-            showToast.info(alertMessage);
-          }
-        }
-        previousUnreadRef.current = next;
-      }
+      setNotifications(filtered);
+      const newUnreadCount = Math.min(
+        filtered.filter((n) => !n.read).length,
+        ALLOWED_TYPES.length
+      );
+      setUnreadCount(newUnreadCount);
     } catch (error) {
-      console.error('Lỗi tải thông báo:', error);
+      if (!silent) showToast.error(t('notifications.loadError'));
     } finally {
-      if (!options.silent) setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  // Load khi mount
+  // ✅ GỘP 3 useEffect thành 1: initial load + polling + task changes + window events
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(() => fetchNotifications({ silent: true }), 60000);
-    return () => clearInterval(interval);
-  }, []);
+    // Load ban đầu
+    fetchNotifications(false);
 
-  // Đánh dấu tất cả đã đọc
+    // Polling mỗi 30s
+    const interval = setInterval(() => fetchNotifications(true), 30000);
+
+    // Window event listeners
+    const onFocus = () => fetchNotifications(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchNotifications(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [taskSignature]); // Refetch khi tasks thay đổi (status, deadline, etc)
+
   const handleMarkAllRead = async () => {
     try {
       await api.put('/notifications/read-all');
-      fetchNotifications({ silent: true });
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
-      console.error('Lỗi đánh dấu đã đọc:', error);
+      showToast.error(t('notifications.markReadError'));
     }
   };
 
-  // Khi click một thông báo
   const handleSelectNotification = async (notification) => {
-    setSelectedNotification(notification);
     try {
       if (!notification.read) {
         await api.put(`/notifications/${notification._id}/read`);
+        setNotifications(prev => prev.map(n => n._id === notification._id ? { ...n, read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
       }
-      // Refresh nhưng không bật alert để tránh lặp lại
-      fetchNotifications({ silent: true });
+      setSelectedNotification(notification);
     } catch (error) {
-      console.error('Lỗi xử lý thông báo:', error);
+      showToast.error(t('notifications.readError'));
     }
   };
 
   return (
     <div className="relative">
-      {/* Notification Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
         aria-label="Notifications"
       >
         <Bell size={24} className="text-gray-700 dark:text-gray-300" />
-        
-        {/* Unread Badge */}
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-5 px-1 text-xs font-bold text-white bg-red-500 rounded-full">
+            {unreadCount}
           </span>
         )}
       </button>
 
-      {/* Notification Dropdown */}
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Notification Panel */}
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="absolute right-0 z-50 mt-2 w-96 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 animate-in fade-in slide-in-from-top-2 duration-200">
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {t('notifications.title')}
@@ -144,13 +118,13 @@ export const NotificationCenter = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsSettingsOpen(true)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors"
                   title={t('notifications.settings')}
                 >
                   <Settings size={16} />
                 </button>
                 {unreadCount > 0 && (
-                  <button 
+                  <button
                     className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                     onClick={handleMarkAllRead}
                   >
@@ -159,9 +133,7 @@ export const NotificationCenter = () => {
                 )}
               </div>
             </div>
-
-            {/* Notification List */}
-            <NotificationList 
+            <NotificationList
               notifications={notifications}
               loading={loading}
               onSelect={handleSelectNotification}
@@ -170,17 +142,15 @@ export const NotificationCenter = () => {
         </>
       )}
 
-      {/* Detail Modal */}
       {selectedNotification && (
-        <NotificationDetailModal 
+        <NotificationDetailModal
           notification={selectedNotification}
           onClose={() => setSelectedNotification(null)}
           onCloseDropdown={() => setIsOpen(false)}
         />
       )}
 
-      {/* Settings Modal */}
-      <NotificationSettings 
+      <NotificationSettings
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />

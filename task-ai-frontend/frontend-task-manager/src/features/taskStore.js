@@ -45,9 +45,6 @@ export const useTaskStore = create((set, get) => ({
         status: taskData.status || TaskStatus.TODO,
       };
 
-      // eslint-disable-next-line no-console
-      console.info('addTask - final payload:', finalPayload);
-
       const res = await api.post("/tasks", finalPayload);
 
       // ✅ Backend returns { success, data, message }
@@ -60,12 +57,6 @@ export const useTaskStore = create((set, get) => ({
 
       return newTask; // Trả về task vừa tạo để hiện toast
     } catch (err) {
-      // Ghi log đầy đủ để dễ debug (status, body)
-      // Trích xuất thông báo rõ ràng cho người dùng
-      // Sau đó ném lại để component xử lý tiếp
-      // eslint-disable-next-line no-console
-      console.error('addTask error:', err.response || err.message || err);
-
       const serverMsg = err.response?.data?.message || err.response?.data || null;
       const msg = serverMsg || "Không thể thêm công việc.";
       set({ error: msg, isLoading: false });
@@ -84,6 +75,7 @@ export const useTaskStore = create((set, get) => ({
       throw new Error("Tasks state is not an array");
     }
 
+    // Optimistic update
     set({
       tasks: prev.map((t) =>
         t._id === id ? { ...t, ...updates } : t
@@ -94,6 +86,14 @@ export const useTaskStore = create((set, get) => ({
       const res = await api.put(`/tasks/${id}`, updates);
       // ✅ Backend returns { success, data, message }
       const updatedTask = res.data.data || res.data;
+      
+      // ✅ Cập nhật lại state với dữ liệu đầy đủ từ backend
+      set({
+        tasks: prev.map((t) =>
+          t._id === id ? updatedTask : t
+        ),
+      });
+      
       return updatedTask; // Trả về task đã cập nhật để hiện toast
     } catch (err) {
       set({ tasks: prev, error: "Cập nhật thất bại." });

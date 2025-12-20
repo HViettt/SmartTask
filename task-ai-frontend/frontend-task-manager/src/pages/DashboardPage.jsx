@@ -17,9 +17,11 @@
  */
 
 import React, { useMemo, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../features/useStore.js';
 import { useTaskStore } from '../features/taskStore.js';
-import { TaskStatus, TaskPriority } from '../types.js';
+import { useDeadlineStats } from '../hooks/useDeadlineStats.js';
+import { TaskStatus, TaskPriority, getStatusBadgeClasses } from '../types.js';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
 } from 'recharts';
@@ -45,6 +47,7 @@ export const Dashboard = () => {
   const [timeFilter, setTimeFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStatKey, setSelectedStatKey] = useState(null);
+  const location = useLocation();
 
   const timeOptions = useMemo(() => ([
     { value: 'all', label: t('dashboard.filters.all') },
@@ -90,9 +93,7 @@ export const Dashboard = () => {
     });
   }, [tasks, timeFilter]);
 
-  // ✅ Sử dụng helper function thay vì logic inline
-  // Đã refactor để maintainable hơn
-
+  // ✅ Helper: Kiểm tra task hoàn thành hôm nay
   const isCompletedToday = (task) => {
     if (!task.completedAt) return false;
     const completedDate = new Date(task.completedAt);
@@ -100,37 +101,45 @@ export const Dashboard = () => {
     return completedDate.toDateString() === today.toDateString();
   };
 
+  // ✅ Tính toán statistics từ filtered tasks
   const stats = useMemo(() => {
     const total = filteredTasks.length;
+    if (total === 0) {
+      return {
+        total: 0, todo: 0, doing: 0, done: 0, 
+        highPriority: 0, completionRate: 0, 
+        overdueTasks: 0, completedToday: 0
+      };
+    }
 
-    // === LOGIC: Phân loại task theo trạng thái ===
-    const todo = filteredTasks.filter(t => t.status === TaskStatus.TODO).length;
-    const doing = filteredTasks.filter(t => t.status === TaskStatus.DOING).length;
-    const done = filteredTasks.filter(t => t.status === TaskStatus.DONE).length;
+    // Phân loại task - 1 lần duyệt thay vì nhiều lần filter
+    let todo = 0, doing = 0, done = 0;
+    let highPriority = 0, overdueTasks = 0, completedToday = 0;
 
-    // Task ưu tiên cao chưa xong
-    const highPriority = filteredTasks.filter(t =>
-      t.priority === TaskPriority.HIGH &&
-      t.status !== TaskStatus.DONE
-    ).length;
+    filteredTasks.forEach(t => {
+      // Đếm status
+      if (t.status === TaskStatus.TODO) todo++;
+      else if (t.status === TaskStatus.DOING) doing++;
+      else if (t.status === TaskStatus.DONE) done++;
 
-    // Task quá hạn - dùng helper function
-    const overdueTasks = filteredTasks.filter(isTaskExpired).length;
+      // High priority chưa xong
+      if (t.priority === TaskPriority.HIGH && t.status !== TaskStatus.DONE) {
+        highPriority++;
+      }
 
-    // Task hoàn thành hôm nay
-    const completedToday = filteredTasks.filter(isCompletedToday).length;
+      // Quá hạn
+      if (isTaskExpired(t)) overdueTasks++;
 
-    const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
+      // Hoàn thành hôm nay
+      if (isCompletedToday(t)) completedToday++;
+    });
+
+    const completionRate = Math.round((done / total) * 100);
 
     return {
-      total,
-      todo,
-      doing,
-      done,
-      highPriority,
-      completionRate,
-      overdueTasks,
-      completedToday
+      total, todo, doing, done,
+      highPriority, completionRate,
+      overdueTasks, completedToday
     };
   }, [filteredTasks]);
 
@@ -140,14 +149,15 @@ export const Dashboard = () => {
     { name: t('statusLabels.done'), value: stats.done, color: '#22c55e' },
   ];
 
-  // Tasks due soon (next 72 hours) - dùng helper function
+  // ✅ KHÔNG giới hạn ngày (72h, 3 ngày...)
+  // Dùng useDeadlineStats để lấy đầy đủ upcoming tasks
+  const { dueSoonTasks } = useDeadlineStats();
+  
+  // Upcoming list ONLY includes "Sắp đến hạn" tasks (exclude overdue)
   const upcomingTasks = useMemo(() => {
-    return filteredTasks
-      .filter(t => t.status !== TaskStatus.DONE)
-      .filter(t => isTaskDueSoon(t, 72)) // 72 giờ = 3 ngày
-      .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-      .slice(0, 5);
-  }, [filteredTasks]);
+    return [...dueSoonTasks]
+      .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+  }, [dueSoonTasks]);
 
   const StatCard = ({ title, value, icon: Icon, color, subtext, onClick }) => (
     <button
@@ -170,10 +180,10 @@ export const Dashboard = () => {
 
   const statCards = useMemo(() => ([
     { key: 'total', title: t('dashboard.stats.total'), value: stats.total, icon: ListTodo, color: 'bg-indigo-500 text-indigo-500' },
-    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: AlertCircle, color: 'bg-slate-500 text-slate-500', subtext: t('dashboard.stats.sub.todo') },
-    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Cog, color: 'bg-blue-500 text-blue-500', subtext: t('dashboard.stats.sub.doing') },
-    { key: 'done', title: t('dashboard.stats.done'), value: stats.done, icon: CheckCircle2, color: 'bg-green-500 text-green-500', subtext: t('dashboard.stats.sub.done', { percent: stats.completionRate }) },
-    { key: 'overdue', title: t('dashboard.stats.overdue'), value: stats.overdueTasks, icon: AlertTriangle, color: 'bg-red-500 text-red-500', subtext: t('dashboard.stats.sub.overdue') },
+    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: AlertCircle, color: 'bg-red-500 text-red-500', subtext: t('dashboard.stats.sub.todo') }, // 🔴 CHƯA LÀM = ĐỎ
+    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Cog, color: 'bg-yellow-500 text-yellow-500', subtext: t('dashboard.stats.sub.doing') }, // 🟡 ĐANG LÀM = VÀNG
+    { key: 'done', title: t('dashboard.stats.done'), value: stats.done, icon: CheckCircle2, color: 'bg-green-500 text-green-500', subtext: t('dashboard.stats.sub.done', { percent: stats.completionRate }) }, // 🟢 HOÀN THÀNH = XANH LÁ
+    { key: 'overdue', title: t('dashboard.stats.overdue'), value: stats.overdueTasks, icon: AlertTriangle, color: 'bg-red-600 text-red-600', subtext: t('dashboard.stats.sub.overdue') },
     { key: 'highPriority', title: t('dashboard.stats.highPriority'), value: stats.highPriority, icon: AlertCircle, color: 'bg-orange-500 text-orange-500', subtext: t('dashboard.stats.sub.highPriority') },
     { key: 'completedToday', title: t('dashboard.stats.completedToday'), value: stats.completedToday, icon: Trophy, color: 'bg-emerald-500 text-emerald-500', subtext: t('dashboard.stats.sub.completedToday') }
   ]), [stats, t]);
@@ -204,6 +214,25 @@ export const Dashboard = () => {
     setSelectedStatKey(key);
     setIsModalOpen(true);
   };
+
+  // Tự động mở modal theo query param (stat=dueSoon|overdue|todo|doing|done)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const stat = params.get('stat');
+    if (!stat) return;
+    const map = {
+      dueSoon: 'doing', // hiển thị các task chưa Done, sắp hết hạn → tương quan với doing/todo; mở doing để người dùng dễ xử lý
+      overdue: 'overdue',
+      todo: 'todo',
+      doing: 'doing',
+      done: 'done'
+    };
+    const key = map[stat];
+    if (key) {
+      setSelectedStatKey(key);
+      setIsModalOpen(true);
+    }
+  }, [location.search]);
 
   // Helper: format ngày tháng theo locale hiện tại
   const formatDate = (value) => {
@@ -300,7 +329,17 @@ export const Dashboard = () => {
                   ))}
                 </Pie>
                 <Tooltip 
-                   contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                    borderColor: '#4b5563',
+                    borderWidth: 2,
+                    borderRadius: '8px',
+                    color: '#f9fafb',
+                    padding: '8px 12px',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
+                  }}
+                  itemStyle={{ color: '#f9fafb', fontWeight: 600 }}
+                  labelStyle={{ color: '#e5e7eb', fontWeight: 500 }}
                 />
                 <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
@@ -308,10 +347,11 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        {/* Upcoming Deadlines */}
+        {/* Upcoming Deadlines - Scroll khi có nhiều tasks */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">{t('dashboard.upcomingTitle')}</h2>
-          <div className="space-y-4">
+          {/* Max height ~320px (≈ 5 items) → scroll khi nhiều hơn */}
+          <div className="space-y-3 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 pr-3">
             {upcomingTasks.length > 0 ? (
               upcomingTasks.map(task => (
                 <div key={task._id} className="flex items-start gap-3 pb-3 border-b border-gray-100 dark:border-gray-700 last:border-0 last:pb-0">
@@ -374,7 +414,7 @@ export const Dashboard = () => {
                       {/* Tiêu đề task - giữ nguyên ngôn ngữ người dùng nhập */}
                       <p className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1">{task.title}</p>
                       {/* Badge status - hiển thị qua i18n */}
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadgeClasses(task.status)}`}>
                         {t(`statusLabels.${statusKey}`)}
                       </span>
                     </div>
