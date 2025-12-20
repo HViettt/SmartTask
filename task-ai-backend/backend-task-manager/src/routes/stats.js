@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Task = require('../models/Task');
 const { protect } = require('../middlewares/authMiddleware');
+const { getUserDeadlineBuckets } = require('../services/deadlineService');
 
 /**
  * @route   GET /api/stats/deadlines
@@ -10,31 +10,9 @@ const { protect } = require('../middlewares/authMiddleware');
  */
 router.get('/deadlines', protect, async (req, res) => {
     try {
-        const now = new Date();
-        const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-        // Lấy tasks chưa hoàn thành của user
-        const tasks = await Task.find({
-            userId: req.user._id,
-            status: { $ne: 'Done' },
-            deadline: { $exists: true, $ne: null }
-        }).sort({ deadline: 1 });
-
-        // Phân loại
-        const overdue = [];
-        const upcoming = [];
-        const later = [];
-
-        tasks.forEach(task => {
-            const deadline = new Date(task.deadline);
-            if (deadline < now) {
-                overdue.push(task);
-            } else if (deadline <= in48Hours) {
-                upcoming.push(task);
-            } else {
-                later.push(task);
-            }
-        });
+        const buckets = await getUserDeadlineBuckets(req.user._id);
+        const overdue = buckets.overdue || [];
+        const upcoming = buckets.upcoming || [];
 
         res.json({
             success: true,
@@ -48,10 +26,10 @@ router.get('/deadlines', protect, async (req, res) => {
                     tasks: upcoming
                 },
                 later: {
-                    count: later.length,
-                    tasks: later
+                    count: 0,
+                    tasks: []
                 },
-                total: tasks.length
+                total: overdue.length + upcoming.length
             }
         });
     } catch (error) {

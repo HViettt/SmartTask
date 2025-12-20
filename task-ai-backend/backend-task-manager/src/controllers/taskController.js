@@ -17,10 +17,10 @@
  */
 
 const Task = require('../models/Task');
-const Notification = require('../models/Notification');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const aiService = require('../utils/aiService');
 const { getDeadlineStatus, isValidDeadlineTime, isTaskOverdue } = require('../utils/deadlineHelper');
+const { refreshUserDeadlineNotifications } = require('../utils/taskScheduler');
 
 // Helpers
 const normalizeTitle = (title = '') =>
@@ -140,28 +140,11 @@ exports.createTask = async (req, res) => {
     });
     const savedTask = await newTask.save();
     
-    // 🔔 Ghi nhận thông báo khi tạo task mới
+    // 🔔 Cập nhật 2 thông báo deadline (DUE_SOON, OVERDUE) ngay khi tạo task mới
     try {
-      await Notification.create({
-        userId: req.user._id,
-        type: 'task',
-        title: 'Công việc mới được tạo',
-        message: `"${savedTask.title}" đã được thêm vào danh sách của bạn`,
-        taskId: savedTask._id,
-        metadata: {
-          task: {
-            _id: savedTask._id,
-            title: savedTask.title,
-            deadline: savedTask.deadline,
-            deadlineTime: savedTask.deadlineTime,
-            priority: savedTask.priority,
-            complexity: savedTask.complexity,
-            status: savedTask.status
-          }
-        }
-      });
+      await refreshUserDeadlineNotifications(req.user._id);
     } catch (notifyErr) {
-      console.warn('⚠️ Lỗi ghi thông báo task mới:', notifyErr.message);
+      console.warn('⚠️ Lỗi cập nhật thông báo deadline:', notifyErr.message);
     }
 
     // Add computed status to response
@@ -264,67 +247,11 @@ exports.updateTask = async (req, res) => {
       { new: true }
     );
 
-    // 🔔 Tạo thông báo cho thay đổi quan trọng
+    // 🔔 Mỗi lần cập nhật task, tính lại 2 thông báo deadline (DUE_SOON, OVERDUE)
     try {
-      const now = new Date();
-      const deadline = task.deadline ? new Date(task.deadline) : null;
-      const in48Hours = deadline ? (deadline - now) / (1000 * 60 * 60) : null;
-
-      let notifyData = null;
-
-      if (status === 'Done') {
-        notifyData = {
-          subtype: 'completed',
-          title: '✅ Công việc hoàn thành',
-          message: `"${task.title}" đã hoàn thành!`,
-          severity: 'success'
-        };
-      } else if (status === 'In Progress' || status === 'Doing') {
-        notifyData = {
-          subtype: 'in-progress',
-          title: '⚙️ Công việc đang thực hiện',
-          message: `"${task.title}" đang được thực hiện`,
-          severity: 'info'
-        };
-      } else if (deadline && in48Hours > 0 && in48Hours <= 48) {
-        notifyData = {
-          subtype: 'deadline-soon',
-          title: '⏰ Công việc sắp đến hạn',
-          message: `"${task.title}" sẽ hết hạn trong ${Math.floor(in48Hours)} giờ`,
-          severity: 'warning'
-        };
-      } else if (deadline && in48Hours < 0 && status !== 'Done') {
-        notifyData = {
-          subtype: 'overdue',
-          title: '🚨 Công việc quá hạn',
-          message: `"${task.title}" đã quá hạn`,
-          severity: 'critical'
-        };
-      }
-
-      if (notifyData) {
-        await Notification.create({
-          userId: req.user._id,
-          type: 'task-status',
-          subtype: notifyData.subtype,
-          title: notifyData.title,
-          message: notifyData.message,
-          severity: notifyData.severity,
-          taskId: task._id,
-          metadata: {
-            task: {
-              _id: task._id,
-              title: task.title,
-              deadline: task.deadline,
-              priority: task.priority,
-              complexity: task.complexity,
-              status: task.status
-            }
-          }
-        });
-      }
+      await refreshUserDeadlineNotifications(req.user._id);
     } catch (notifyErr) {
-      console.warn('⚠️ Lỗi ghi thông báo status:', notifyErr.message);
+      console.warn('⚠️ Lỗi cập nhật thông báo deadline:', notifyErr.message);
     }
 
     res.json({

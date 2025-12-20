@@ -2,8 +2,8 @@
 
 > Hệ thống quản lý công việc thông minh với AI scheduling, tự động phát hiện deadline và hỗ trợ đa ngôn ngữ (Tiếng Việt/English)
 
-**Ngày cập nhật:** December 18, 2025  
-**Trạng thái:** ✅ Production Ready  
+**Ngày cập nhật:** December 20, 2025  
+**Trạng thái:** ✅ Production Ready (v2.0.0)  
 **Tech Stack:** React + Node.js + MongoDB + AI (Groq/Gemini)
 
 ---
@@ -25,7 +25,34 @@
 - **AI Services:** Groq API + Google Gemini (fallback)
 - **Scheduler:** node-cron (auto-detect overdue tasks)
 - **Upload:** Cloudinary (avatar management)
+---
 
+## 🎨 Cập Nhật Mới Nhất (December 20, 2025)
+
+### ✅ Fixed Issues
+- **Notification Badge Bug**: Badge không cập nhật khi mark as read
+  - ✅ Synthetic notifications (DUE_SOON, OVERDUE) không tính vào unread
+  - ✅ Only EMAIL_SENT counts toward unread counter
+  - ✅ Badge cập nhật **NGAY LẬP TỨC** (không cần reload trang)
+  - 💡 Logic: `unreadCount = emailNotifs.filter(n => !n.read).length`
+
+### 🎨 UI Enhancements
+- **Dashboard Status Colors**: Thêm màu cho trạng thái task
+  - 🔴 Todo (Chưa Làm) → Màu Đỏ
+  - 🟡 Doing (Đang Làm) → Màu Vàng
+  - 🟢 Done (Hoàn Thành) → Màu Xanh Lá
+  - 🔴 Overdue (Quá Hạn) → Màu Đỏ Đậm
+  - Định nghĩa trong `src/types.js` (StatusColors constant)
+
+### 🪝 Code Improvements
+- **Shared Deadline Logic**: `useDeadlineStats` hook (Dashboard + Notification)
+  - Đồng bộ counts giữa 2 components
+  - Real-time updates khi task thay đổi
+  - Threshold: 48 giờ cho DUE_SOON counts
+
+### 📄 Documentation
+- Consolidate from 9 files → **1 README.md**
+- Tất cả thông tin quan trọng tập trung ở đây
 ---
 
 ## 🚀 Cài Đặt & Chạy Dự Án

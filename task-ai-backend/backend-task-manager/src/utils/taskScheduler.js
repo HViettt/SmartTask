@@ -1,28 +1,6 @@
 /**
- * ============================================================================
- * TASK SCHEDULER MODULE - IMPROVED v2
- * ============================================================================
- * Mục đích: Hệ thống tự động quản lý task và lập lịch thông báo
- * 
- * Cải tiến v2:
- * - ✅ Kiểm tra setting emailNotifications của user
- * - ✅ Chống gửi trùng lặp: 1 user/1 ngày tối đa 1 email
- * - ✅ Lưu trạng thái gửi (sent/failed) vào EmailDigestLog
- * - ✅ Sử dụng VN timezone cho tất cả tính toán
- * - ✅ Return success/failure từ sendEmail() để tracking
- * 
- * Các job:
- *   1. notifyDeadlineJob: Gửi email deadline - Mỗi ngày lúc 9:00 AM
- *   2. checkOverdueJob: Kiểm tra task quá hạn - Mỗi 30 phút
- * 
- * Database:
- *   - Notification: Ghi nhận thông báo trong hệ thống
- *   - EmailDigestLog: Lưu lịch sử gửi email (prevent duplicate)
- *   - Task: Đánh dấu isOverdueNotified
- * 
- * Author: System Implementation
- * Last Updated: December 20, 2025 (v2 - Full fixes)
- * ============================================================================
+ * Task Scheduler Module - Optimized
+ * Tự động quản lý task và lập lịch thông báo deadline
  */
 
 const schedule = require('node-schedule');
@@ -32,18 +10,14 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const EmailDigestLog = require('../models/EmailDigestLog');
 const { isTaskOverdue, getDeadlineStatus, formatDeadline, VN_TIMEZONE } = require('./deadlineHelper');
-/**
- * Gửi email và return { success, messageId, error }
- * Lần này có trả về status để có thể tracking
- */
+const { NOTIFICATION_TYPES, ACTIVE_TASK_STATUSES } = require('../common/constants');
+const { buildDeadlineBucketsByTasks, getAllUsersDeadlineBuckets, getUserDeadlineBuckets, mapTaskSummary } = require('../services/deadlineService');
+
 const sendEmail = async (to, subject, htmlContent) => {
     const nodemailer = require('nodemailer');
     
-    // Kiểm tra cấu hình email
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn('⚠️ EMAIL không được cấu hình. Bỏ qua gửi thông báo deadline.');
-        console.log(`📧 [DEV MODE] Email đến ${to}: ${subject}`);
-        return { success: true, messageId: 'dev-mode-' + Date.now(), error: null }; // DEV mode: return success
+        return { success: true, messageId: 'dev-mode-' + Date.now(), error: null };
     }
     
     const transporter = nodemailer.createTransport({
@@ -61,17 +35,11 @@ const sendEmail = async (to, subject, htmlContent) => {
             subject,
             html: htmlContent,
         });
-        console.log(`✅ Email deadline đã gửi đến ${to} (messageId: ${info.messageId})`);
         return { success: true, messageId: info.messageId, error: null };
     } catch (error) {
-        console.error(`❌ Lỗi gửi email đến ${to}:`, error.message);
         return { success: false, messageId: null, error: error.message };
     }
 };
-
-/**
- * Format ngày giờ thành chuỗi dễ đọc
- */
 const formatDate = (date) => {
     const options = { 
         year: 'numeric', 
@@ -166,23 +134,167 @@ const createEmailHTML = (userName, upcomingTasks, overdueTasks) => {
     `;
 };
 
-/**
- * Lấy ngày hiện tại theo VN timezone (format YYYY-MM-DD)
- */
+// Chuẩn hóa task vào metadata (chỉ các trường cần hiển thị)
+// mapTaskSummary đã được tái sử dụng từ deadlineService để tránh trùng lặp logic
+
+// So sánh nông (metadata nhỏ) để biết payload có đổi hay không
+const isShallowEqual = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
+
+// Upsert 1 bản ghi duy nhất cho từng loại thông báo hệ thống
+// Reset read=false CHỈ KHI payload thay đổi (để badge tăng đúng lúc)
+// Upsert tối giản: chỉ lưu trạng thái hiển thị (read) và thời điểm kích hoạt
+// KHÔNG lưu danh sách task để Notification không lệ thuộc dữ liệu
+const upsertSystemNotification = async (userId, type, payload = {}) => {
+    const selector = { userId, type, subtype: null };
+    const existing = await Notification.findOne(selector).lean();
+
+    // Chỉ so sánh những thuộc tính hiển thị đơn giản
+    const payloadChanged = !existing
+        || existing.title !== payload.title
+        || existing.message !== payload.message
+        || existing.severity !== payload.severity;
+
+    if (!payloadChanged) {
+        // Nếu dữ liệu không đổi, chỉ cập nhật lastTriggeredAt để theo dõi thời điểm check
+        await Notification.updateOne(selector, { $set: { lastTriggeredAt: new Date() } });
+        return existing;
+    }
+
+    return Notification.findOneAndUpdate(
+        selector,
+        {
+            $set: {
+                type,
+                subtype: null,
+                title: payload.title || 'Thông báo hệ thống',
+                message: payload.message || '',
+                severity: payload.severity || 'info',
+                // Khi dashboard đổi → kích hoạt lại và đặt unread
+                lastTriggeredAt: new Date(),
+                read: false,
+                // Xóa metadata phức tạp để tránh lưu danh sách task
+                metadata: {}
+            }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+};
+
+// Đồng bộ thông báo EMAIL_SENT từ bản ghi EmailDigestLog mới nhất
+const syncEmailNotificationFromLog = async (log) => {
+    if (!log) return;
+    const upcoming = Number(log.upcomingCount || 0);
+    const overdue = Number(log.overdueCount || 0);
+    const total = upcoming + overdue;
+    const severity = log.status === 'failed'
+        ? 'warn'
+        : (overdue > 0 ? 'critical' : (upcoming > 0 ? 'warn' : 'info'));
+
+    await upsertSystemNotification(log.userId, NOTIFICATION_TYPES.EMAIL_SENT, {
+        title: 'Đã gửi thông báo qua Gmail',
+        message: `Email ngày ${log.digestDate} đã được gửi`,
+        severity
+    });
+};
+
+// Cập nhật 2 loại thông báo deadline (DUE_SOON, OVERDUE) dựa trên bucket sẵn có
+const refreshUserDeadlineNotifications = async (userId, bucket, { fetchIfMissing = true } = {}) => {
+    let upcoming = bucket?.upcoming || [];
+    let overdue = bucket?.overdue || [];
+
+    // Nếu không truyền bucket thì query lại theo đúng logic dashboard (status != Done, deadline with 48h / past)
+    if (!bucket && fetchIfMissing) {
+        const activeTasks = await Task.find({
+            userId,
+            status: { $ne: 'Done' },
+            deadline: { $exists: true, $ne: null }
+        }).lean();
+        const computed = buildDeadlineBucketsByTasks(activeTasks).get(userId?.toString()) || { upcoming: [], overdue: [] };
+        upcoming = computed.upcoming || [];
+        overdue = computed.overdue || [];
+    }
+
+    // Đọc bản ghi hiện có để so sánh số lượng, tránh reset chéo
+    // Lấy bản ghi mới nhất theo type (bỏ qua subtype để đọc cả dữ liệu legacy)
+    const [dueSoonDoc, overdueDoc] = await Promise.all([
+        Notification.findOne({ userId, type: NOTIFICATION_TYPES.DUE_SOON }).sort({ updatedAt: -1 }).lean(),
+        Notification.findOne({ userId, type: NOTIFICATION_TYPES.OVERDUE }).sort({ updatedAt: -1 }).lean()
+    ]);
+
+    // Backend CHỈ lưu timestamp và read state, KHÔNG lưu count
+    // Frontend sẽ tự tính count từ tasks (SOURCE OF TRUTH duy nhất)
+    // Đọc count cũ từ metadata với fallback cho key legacy
+    // Lý do: trước đây metadata dùng upcomingCount/overdueCount, về sau chuyển sang _trackCount
+    // Nếu chỉ đọc _trackCount sẽ luôn = 0 với bản ghi cũ → gây trigger sai và reset timestamp chéo
+    const safeCount = (val) => {
+        const n = Number(val);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+    };
+    const prevDueSoonCount = safeCount(
+        dueSoonDoc?.metadata?.upcomingCount ?? dueSoonDoc?.metadata?._trackCount ?? 0
+    );
+    const prevOverdueCount = safeCount(
+        overdueDoc?.metadata?.overdueCount ?? overdueDoc?.metadata?._trackCount ?? 0
+    );
+    const nextDueSoonCount = upcoming.length;
+    const nextOverdueCount = overdue.length;
+    const existedDueSoon = !!dueSoonDoc;
+    const existedOverdue = !!overdueDoc;
+
+    // ========================
+    // DUE_SOON NOTIFICATION
+    // ========================
+    // CHỈ update khi DUE_SOON count THỰC SỰ thay đổi
+    // Khi count thay đổi → set read=false (báo user có dữ liệu mới)
+    if (nextDueSoonCount !== prevDueSoonCount) {
+        const shouldMarkUnread = (nextDueSoonCount > prevDueSoonCount) || (!existedDueSoon && nextDueSoonCount > 0);
+        await Notification.findOneAndUpdate(
+            { userId, type: NOTIFICATION_TYPES.DUE_SOON, subtype: null },
+            {
+                $set: {
+                    type: NOTIFICATION_TYPES.DUE_SOON,
+                    subtype: null,
+                    title: '⚠️ Công việc sắp hết hạn',
+                    message: 'Danh sách công việc sắp hết hạn đã thay đổi',
+                    severity: nextDueSoonCount > 0 ? 'warn' : 'info',
+                    lastTriggeredAt: new Date(),
+                    read: shouldMarkUnread ? false : (dueSoonDoc?.read ?? true),
+                    metadata: { _trackCount: nextDueSoonCount, upcomingCount: nextDueSoonCount }
+                }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+    }
+
+    if (nextOverdueCount !== prevOverdueCount) {
+        const shouldMarkUnread = (nextOverdueCount > prevOverdueCount) || (!existedOverdue && nextOverdueCount > 0);
+        await Notification.findOneAndUpdate(
+            { userId, type: NOTIFICATION_TYPES.OVERDUE, subtype: null },
+            {
+                $set: {
+                    type: NOTIFICATION_TYPES.OVERDUE,
+                    subtype: null,
+                    title: '🚨 Công việc quá hạn',
+                    message: 'Danh sách công việc quá hạn đã thay đổi',
+                    severity: nextOverdueCount > 0 ? 'critical' : 'info',
+                    lastTriggeredAt: new Date(),
+                    read: shouldMarkUnread ? false : (overdueDoc?.read ?? true),
+                    metadata: { _trackCount: nextOverdueCount, overdueCount: nextOverdueCount }
+                }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+    }
+};
+
+// ĐÃ DI CHUYỂN sang deadlineService.buildDeadlineBucketsByTasks để dùng chung Dashboard/Notifications
+
 const getTodayDateVN = () => {
     return moment.tz(VN_TIMEZONE).format('YYYY-MM-DD');
 };
 
-/**
- * HÀM CHÍNH: Xử lý gửi thông báo deadline với cải tiến
- * - Kiểm tra user setting emailNotifications
- * - Chống gửi trùng: 1 user/1 ngày tối đa 1 email
- * - Lưu trạng thái gửi vào EmailDigestLog
- */
 const processDeadlineNotifications = async () => {
     try {
-        console.log('\n🔄 [Scheduler v2] Bắt đầu kiểm tra deadline công việc...');
-        
         const now = new Date();
         const today = new Date(now);
         today.setUTCHours(0, 0, 0, 0);
@@ -190,95 +302,53 @@ const processDeadlineNotifications = async () => {
         tomorrow.setUTCDate(today.getUTCDate() + 1);
         
         const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-        const todayDateStr = getTodayDateVN(); // Format YYYY-MM-DD
+        const todayDateStr = getTodayDateVN();
         
-        // 1. Truy vấn tất cả công việc chưa hoàn thành có deadline
         const incompleteTasks = await Task.find({
             status: { $ne: 'Done' },
             deadline: { $exists: true, $ne: null }
         }).lean();
+
+        const bucketsByUser = buildDeadlineBucketsByTasks(incompleteTasks);
+        const userIds = Array.from(bucketsByUser.keys());
         
-        console.log(`📋 Tìm thấy ${incompleteTasks.length} công việc chưa hoàn thành có deadline.`);
-        
-        // 2. Nhóm công việc theo userId
-        const tasksByUser = {};
-        
-        incompleteTasks.forEach(task => {
-            const taskDeadline = new Date(task.deadline);
-            const deadlineDate = new Date(taskDeadline);
-            deadlineDate.setUTCHours(0, 0, 0, 0);
-            const nextDay = new Date(deadlineDate);
-            nextDay.setUTCDate(deadlineDate.getUTCDate() + 1);
-            
-            const userId = task.userId.toString();
-            
-            // Phân loại: Sắp hết hạn (48h) hoặc Đã quá hạn
-            const isOverdue = today >= nextDay;
-            const isUpcoming = taskDeadline > now && taskDeadline <= in48Hours && !isOverdue;
-            
-            if (isUpcoming || isOverdue) {
-                if (!tasksByUser[userId]) {
-                    tasksByUser[userId] = {
-                        upcoming: [],
-                        overdue: []
-                    };
-                }
-                
-                if (isUpcoming) {
-                    tasksByUser[userId].upcoming.push(task);
-                } else if (isOverdue) {
-                    tasksByUser[userId].overdue.push(task);
-                }
-            }
-        });
-        
-        const userIds = Object.keys(tasksByUser);
-        console.log(`👥 Có ${userIds.length} người dùng cần được xem xét gửi thông báo.`);
-        
-        // 3. Gửi email cho từng người dùng (với cải tiến)
         let emailsSent = 0;
         let emailsSkipped = 0;
         let emailsFailed = 0;
         
         for (const userId of userIds) {
             try {
+                const bucket = bucketsByUser.get(userId) || { upcoming: [], overdue: [] };
+                await refreshUserDeadlineNotifications(userId, bucket);
+
                 const user = await User.findById(userId);
                 
-                if (!user || !user.email) {
-                    console.warn(`⚠️ Không tìm thấy user hoặc email cho userId: ${userId}`);
-                    continue;
-                }
+                if (!user || !user.email) continue;
                 
-                // ✅ CỐI 1: Kiểm tra user setting emailNotifications
                 if (user.notificationSettings && user.notificationSettings.emailNotifications === false) {
-                    console.log(`⏭️  Bỏ qua ${user.name}: Email notifications bị tắt trong setting`);
                     emailsSkipped++;
                     continue;
                 }
                 
-                // ✅ CỐI 2: Chống gửi trùng - kiểm tra đã gửi hôm nay chưa
                 const existingLog = await EmailDigestLog.findOne({
                     userId: user._id,
                     digestDate: todayDateStr
                 });
                 
                 if (existingLog) {
-                    console.log(`⏭️  Bỏ qua ${user.name}: Đã gửi email hôm nay (${todayDateStr})`);
+                    await syncEmailNotificationFromLog(existingLog);
                     emailsSkipped++;
                     continue;
                 }
                 
-                const { upcoming, overdue } = tasksByUser[userId];
+                const { upcoming, overdue } = bucket;
                 const totalTasks = upcoming.length + overdue.length;
                 
-                // Tạo nội dung email
                 const emailHTML = createEmailHTML(user.name, upcoming, overdue);
                 const subject = `🔔 Thông báo: ${totalTasks} công việc cần chú ý`;
 
-                // ✅ CỐI 3: Gửi email và tracking kết quả
                 const sendResult = await sendEmail(user.email, subject, emailHTML);
                 
-                // Lưu kết quả vào EmailDigestLog
                 const logEntry = {
                     userId: user._id,
                     digestDate: todayDateStr,
@@ -290,157 +360,55 @@ const processDeadlineNotifications = async () => {
                     sentAt: new Date()
                 };
                 
-                await EmailDigestLog.create(logEntry);
+                const createdLog = await EmailDigestLog.create(logEntry);
                 
                 if (sendResult.success) {
                     emailsSent++;
-                    
-                    // Chuẩn hóa dữ liệu công việc
-                    const mapTask = (task) => ({
-                        _id: task._id,
-                        title: task.title,
-                        deadline: task.deadline,
-                        priority: task.priority,
-                        complexity: task.complexity,
-                        status: task.status
-                    });
-
-                    // Tạo thông báo trong DB (hiển thị trong Notification Center)
-                    await Notification.create({
-                        userId: user._id,
-                        type: 'email',
-                        title: 'Tổng hợp deadline đã gửi qua Email',
-                        message: `${totalTasks} công việc: ${overdue.length} quá hạn, ${upcoming.length} sắp hết hạn`,
-                        severity: overdue.length > 0 ? 'critical' : 'warn',
-                        metadata: {
-                            emailSent: true,
-                            upcomingCount: upcoming.length,
-                            overdueCount: overdue.length,
-                            upcoming: upcoming.map(mapTask),
-                            overdue: overdue.map(mapTask),
-                            messageId: sendResult.messageId
-                        }
-                    });
-                    
-                    console.log(`✉️  Gửi thành công cho ${user.name} (${user.email}): ${upcoming.length} sắp hết hạn, ${overdue.length} quá hạn`);
+                    await syncEmailNotificationFromLog(createdLog);
                 } else {
                     emailsFailed++;
-                    console.error(`❌ Gửi email thất bại cho ${user.name}: ${sendResult.error}`);
                 }
                 
             } catch (userError) {
                 emailsFailed++;
-                console.error(`❌ Lỗi khi xử lý user ${userId}:`, userError.message);
             }
         }
         
-        console.log(`✅ [Scheduler v2] Hoàn thành!\n   📧 Gửi thành công: ${emailsSent}\n   ⏭️  Bỏ qua: ${emailsSkipped}\n   ❌ Thất bại: ${emailsFailed}\n`);
-        
     } catch (error) {
-        console.error('❌ [Scheduler] Lỗi khi xử lý deadline notifications:', error);
+        console.error('[Scheduler] Lỗi xử lý deadline notifications:', error.message);
     }
 };
 
-/**
- * HÀM: Kiểm tra và cập nhật Overdue status
- * Chạy mỗi 30 phút để đánh dấu các task quá hạn
- */
 const checkAndUpdateOverdueTasks = async () => {
     try {
-        const now = new Date();
-        
-        // Tìm các task chưa hoàn thành và chưa được thông báo quá hạn
-        const tasks = await Task.find({
-            status: { $in: ['Todo', 'Doing'] },
-            isOverdueNotified: false
-        });
-        
-        if (tasks.length === 0) {
-            console.log('✅ Không có task mới quá hạn');
-            return;
+        const activeTasks = await Task.find({
+            status: { $ne: 'Done' },
+            deadline: { $exists: true, $ne: null }
+        }).lean();
+
+        const bucketsByUser = buildDeadlineBucketsByTasks(activeTasks);
+
+        for (const [userId, bucket] of bucketsByUser.entries()) {
+            await refreshUserDeadlineNotifications(userId, bucket);
         }
-        
-        const newlyOverdueTasks = tasks.filter(task => isTaskOverdue(task, now));
-        
-        if (newlyOverdueTasks.length === 0) {
-            console.log('✅ Không có task mới quá hạn');
-            return;
-        }
-        
-        console.log(`⚠️ Tìm thấy ${newlyOverdueTasks.length} task quá hạn`);
-        
-        // Cập nhật tasks và tạo notification
-        for (const task of newlyOverdueTasks) {
-            // Đánh dấu đã thông báo (không thay đổi status, để status ở Todo/Doing)
-            task.isOverdueNotified = true;
-            await task.save();
-            
-            console.log(`✅ Task "${task.title}" (${task._id}) đánh dấu overdue notification`);
-            
-            // Tạo notification
-            const formattedDeadline = formatDeadline(task.deadline, task.deadlineTime);
-            await Notification.create({
-                userId: task.userId,
-                type: 'task',
-                subtype: 'overdue',
-                title: '⚠️ Công việc quá hạn',
-                message: `"${task.title}" đã quá hạn từ ${formattedDeadline}`,
-                taskId: task._id,
-                severity: 'high',
-                metadata: {
-                    task: {
-                        _id: task._id,
-                        title: task.title,
-                        deadline: task.deadline,
-                        deadlineTime: task.deadlineTime,
-                        priority: task.priority
-                    }
-                },
-                isRead: false
-            });
-        }
-        
-        console.log(`✅ Đã xử lý ${newlyOverdueTasks.length} task quá hạn`);
     } catch (error) {
-        console.error('❌ Lỗi trong checkAndUpdateOverdueTasks:', error);
+        console.error('[Scheduler] Lỗi checkAndUpdateOverdueTasks:', error.message);
     }
 };
 
-/**
- * KHỞI TẠO SCHEDULED JOB
- * - Job 1: Mỗi ngày lúc 9:00 AM VN timezone
- * - Job 2: Mỗi 30 phút
- */
 const initializeScheduler = () => {
-    // Job 1: Gửi thông báo deadline - Mỗi ngày lúc 9:00 AM
-    // Cron: '0 0 9 * * *' = 09:00:00 mỗi ngày
     const deadlineJob = schedule.scheduleJob('0 0 9 * * *', async () => {
-        console.log(`⏰ [${moment.tz(VN_TIMEZONE).format('YYYY-MM-DD HH:mm:ss')}] Scheduler v2 triggered - Kiểm tra deadline`);
         await processDeadlineNotifications();
     });
     
-    // Job 2: Kiểm tra overdue - Mỗi 30 phút
     const overdueJob = schedule.scheduleJob('*/30 * * * *', async () => {
-        console.log(`⏰ [${moment.tz(VN_TIMEZONE).format('YYYY-MM-DD HH:mm:ss')}] Checking overdue tasks...`);
         await checkAndUpdateOverdueTasks();
     });
-    
-    console.log('✅ Task Scheduler v2 (Improved) đã được khởi tạo:');
-    console.log('   ✓ Kiểm tra user setting emailNotifications');
-    console.log('   ✓ Chống gửi trùng lặp (1 user/1 ngày)');
-    console.log('   ✓ Lưu trạng thái gửi vào EmailDigestLog');
-    console.log('   - Gửi thông báo deadline: Mỗi ngày lúc 9:00 AM');
-    console.log('   - Kiểm tra overdue: Mỗi 30 phút');
-    console.log('🔔 Thông báo deadline sẽ được gửi tự động cho công việc sắp hết hạn và quá hạn\n');
     
     return { deadlineJob, overdueJob };
 };
 
-/**
- * CHẠY THỬ NGAY LẬP TỨC (Development/Testing)
- */
 const runImmediately = async () => {
-    console.log('🧪 [TEST MODE v2] Chạy thử scheduler ngay lập tức...\n');
     await processDeadlineNotifications();
 };
 
@@ -448,5 +416,6 @@ module.exports = {
     initializeScheduler,
     processDeadlineNotifications,
     checkAndUpdateOverdueTasks,
+    refreshUserDeadlineNotifications,
     runImmediately
 };

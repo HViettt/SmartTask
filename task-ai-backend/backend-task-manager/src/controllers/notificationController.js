@@ -1,30 +1,44 @@
 const Notification = require('../models/Notification');
+const { NOTIFICATION_TYPES } = require('../common/constants');
 
 // GET /api/notifications - Lấy danh sách thông báo
+// =============================
+// YÊU CẦU MỚI:
+// - Mỗi loại thông báo (type/subtype) chỉ hiển thị bản ghi MỚI NHẤT
+// - Không hiển thị lịch sử cũ, chỉ giữ 1 tin cho mỗi loại
+// KỸ THUẬT:
+// - Sử dụng aggregation: sort theo updatedAt DESC, group theo {type, subtype}, lấy bản ghi đầu tiên
 exports.getNotifications = async (req, res) => {
   try {
-    const { limit = 20, skip = 0, unreadOnly = false } = req.query;
-    
-    const query = { userId: req.user._id };
+    const { unreadOnly = false } = req.query;
+
+    const allowedTypes = Object.values(NOTIFICATION_TYPES);
+    const matchStage = { userId: req.user._id, type: { $in: allowedTypes } };
     if (unreadOnly === 'true') {
-      query.read = false;
+      matchStage.read = false;
     }
 
-    const notifications = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .lean();
+    const pipeline = [
+      { $match: matchStage },
+      { $sort: { updatedAt: -1 } }, // Ưu tiên bản ghi cập nhật mới nhất
+      { $group: {
+          _id: { type: '$type' },
+          doc: { $first: '$$ROOT' }
+        }
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { updatedAt: -1 } }
+    ];
+
+    const notifications = await Notification.aggregate(pipeline);
 
     const unreadCount = await Notification.countDocuments({
       userId: req.user._id,
+      type: { $in: allowedTypes },
       read: false
     });
 
-    res.json({
-      notifications,
-      unreadCount
-    });
+    res.json({ notifications, unreadCount });
   } catch (error) {
     console.error('Get Notifications Error:', error);
     res.status(500).json({ message: 'Lỗi khi tải thông báo' });
@@ -110,23 +124,9 @@ exports.createTestNotification = async (req, res) => {
     const notifications = [
       {
         userId: req.user._id,
-        type: 'deadline',
-        title: 'Thông báo deadline sắp đến (TEST)',
-        message: 'Có 2 công việc cần chú ý trong 24 giờ tới',
-        severity: 'warn',
-        read: false,
-        metadata: {
-          test: true,
-          emailSent: false,
-          upcoming: sampleTasks,
-          overdue: []
-        }
-      },
-      {
-        userId: req.user._id,
-        type: 'email',
-        title: 'Đã gửi thông báo qua Email (TEST)',
-        message: '5 công việc: 2 quá hạn, 3 sắp hết hạn đã được gửi đến email của bạn',
+        type: NOTIFICATION_TYPES.EMAIL_SENT,
+        title: 'Đã gửi thông báo qua Gmail (TEST)',
+        message: '5 công việc: 2 quá hạn, 3 sắp hết hạn đã được gửi qua email',
         severity: 'info',
         read: false,
         metadata: {
@@ -140,14 +140,28 @@ exports.createTestNotification = async (req, res) => {
       },
       {
         userId: req.user._id,
-        type: 'task',
-        title: 'Công việc mới được tạo (TEST)',
-        message: 'Bạn có công việc mới: "Review code Pull Request #123"',
-        severity: 'info',
+        type: NOTIFICATION_TYPES.DUE_SOON,
+        title: '⚠️ Công việc sắp hết hạn (TEST)',
+        message: 'Có 2 công việc cần chú ý trong 48 giờ tới',
+        severity: 'warn',
         read: false,
         metadata: {
           test: true,
-          task: sampleTasks[1]
+          upcomingCount: sampleTasks.length,
+          upcoming: sampleTasks
+        }
+      },
+      {
+        userId: req.user._id,
+        type: NOTIFICATION_TYPES.OVERDUE,
+        title: '🚨 Công việc quá hạn (TEST)',
+        message: '1 công việc đã quá hạn cần xử lý',
+        severity: 'critical',
+        read: false,
+        metadata: {
+          test: true,
+          overdueCount: 1,
+          overdue: [sampleTasks[0]]
         }
       }
     ];
