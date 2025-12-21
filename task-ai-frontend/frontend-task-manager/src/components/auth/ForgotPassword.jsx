@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../features/useStore";
 import { Loader2, AlertCircle, Send, ArrowLeft, CheckCircle2, Mail } from "lucide-react";
 import { useI18n } from "../../utils/i18n";
@@ -7,7 +7,7 @@ import { useI18n } from "../../utils/i18n";
 export const ForgotPasswordPage = () => {
   const { forgotPassword, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const navigate = useNavigate();
   const { t } = useI18n();
 
   useEffect(() => {
@@ -18,7 +18,9 @@ export const ForgotPasswordPage = () => {
     e.preventDefault();
     try {
       await forgotPassword(email);
-      setSent(true);
+      // ✅ Sau khi gửi OTP thành công: chuyển sang trang Verify OTP
+      // Truyền kèm email để prefill ở trang xác minh
+      navigate('/verify-otp', { state: { email } });
     } catch (err) {
       // Error handled inside store
     }
@@ -53,26 +55,7 @@ export const ForgotPasswordPage = () => {
             </p>
           </div>
 
-          {sent ? (
-            <div className="text-center animate-in fade-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl">
-                <CheckCircle2 size={32} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">{t('auth.forgot.sentTitle')}</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-1">
-                {t('auth.forgot.sentDesc')}
-              </p>
-              <p className="text-gray-700 dark:text-gray-300 mb-6 font-semibold">{email}</p>
-              <Link
-                to="/login"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl"
-              >
-                <ArrowLeft size={18} />
-                {t('auth.forgot.back')}
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50/80 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm border border-red-200 dark:border-red-800/50 animate-in shake duration-300">
                   <AlertCircle size={18} className="flex-shrink-0" />
@@ -94,7 +77,8 @@ export const ForgotPasswordPage = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:bg-white dark:focus:bg-gray-900 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:bg-white dark:focus:bg-gray-900 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder={t('auth.register.emailPlaceholder')}
                   />
                 </div>
@@ -113,7 +97,6 @@ export const ForgotPasswordPage = () => {
                 {t('auth.forgot.submit')}
               </button>
             </form>
-          )}
         </div>
       </div>
     </div>

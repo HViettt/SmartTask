@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema({
   verificationToken: { type: String },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
+    // Mã OTP đặt lại mật khẩu (độc lập với verificationToken dùng đăng ký)
+    resetCode: { type: String },
+    resetCodeExpires: { type: Date },
   preferences: {
     theme: { type: String, enum: ['light', 'dark'], default: 'light' },
     language: { type: String, enum: ['vi', 'en'], default: 'vi' }
@@ -21,7 +24,9 @@ const userSchema = new mongoose.Schema({
     emailNotifications: { type: Boolean, default: true },
     taskActionToasts: { type: Boolean, default: true },
     webEntryAlerts: { type: Boolean, default: true },
-    taskStatusNotifications: { type: Boolean, default: true }
+        taskStatusNotifications: { type: Boolean, default: true },
+        // Bật/tắt thông báo Deadline (DUE_SOON/OVERDUE)
+        deadlineNotifications: { type: Boolean, default: true }
   }
 }, {
   timestamps: true 
@@ -98,6 +103,26 @@ userSchema.methods.getVerificationCode = function() {
     this.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // Có thể dùng lại trường expires
 
     return verificationCode; // Trả về code gốc (6 chữ số) để gửi qua email
+};
+
+// METHOD: Tạo mã OTP đặt lại mật khẩu (6 chữ số)
+// Lưu hash vào resetCode, set hạn dùng (10 phút), chỉ dùng 1 lần
+userSchema.methods.getResetCode = function() {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    this.resetCode = crypto
+        .createHash('sha256')
+        .update(code)
+        .digest('hex');
+
+    this.resetCodeExpires = Date.now() + 10 * 60 * 1000; // 10 phút
+    return code; // Trả về mã gốc để gửi email
+};
+
+// METHOD: Xóa mã OTP sau khi sử dụng
+userSchema.methods.clearResetCode = function() {
+    this.resetCode = undefined;
+    this.resetCodeExpires = undefined;
 };
 
 module.exports = mongoose.model('User', userSchema);

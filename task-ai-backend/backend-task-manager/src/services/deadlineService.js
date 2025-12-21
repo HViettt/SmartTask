@@ -7,6 +7,7 @@
  */
 
 const Task = require('../models/Task');
+const { getDeadlineDateTime } = require('../utils/deadlineHelper');
 
 // Chuẩn hóa task (giảm payload, đủ cho Notification/Dashboard)
 const mapTaskSummary = (task) => ({
@@ -28,9 +29,10 @@ const buildDeadlineBucketsByTasks = (tasks, now = new Date()) => {
     if (!task.userId) return;
     if (!task.deadline) return;
 
-    const deadline = new Date(task.deadline);
-    const isOverdue = deadline < now;
-    const isUpcoming = !isOverdue && deadline <= in48Hours;
+    // So sánh FULL datetime theo deadline + deadlineTime (timezone VN)
+    const deadlineMoment = getDeadlineDateTime(task.deadline, task.deadlineTime);
+    const isOverdue = deadlineMoment ? deadlineMoment.toDate() < now : false;
+    const isUpcoming = !isOverdue && (deadlineMoment ? deadlineMoment.toDate() <= in48Hours : false);
     if (!isOverdue && !isUpcoming) return;
 
     const key = task.userId.toString();

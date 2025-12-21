@@ -238,127 +238,90 @@ exports.verifyEmail = async (req, res, next) => {
         res.status(500).json({ message: 'Lỗi máy chủ khi xác minh email.' });
     }
 };
-// @mota    Khởi tạo quy trình quên mật khẩu
+// @mota    QUÊN MẬT KHẨU - GỬI MÃ XÁC MINH (OTP)
+// Luồng: FE gửi email -> BE tạo mã 6 chữ số, lưu hash + hạn dùng -> Gửi email chứa mã
 // @route   POST /api/auth/forgot-password
 // @access  Public
 exports.forgotPassword = async (req, res, next) => {
     const { email } = req.body;
     try {
         const user = await User.findOne({ email });
-
         if (!user) {
             return res.status(404).json({ message: 'Không tìm thấy người dùng với email này.' });
         }
 
-        // 1. TẠO TOKEN MỚI:
-        const resetToken = crypto.randomBytes(32).toString('hex'); // Token thô để gửi qua email
-        
-        // 2. HASH TOKEN: Lưu vào DB để an toàn
-        // Dùng SHA256 để hash token thô
-        const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+        // 1) Tạo mã OTP 6 chữ số và lưu hash vào resetCode (hạn 10 phút)
+        const code = user.getResetCode();
+        await user.save({ validateBeforeSave: false });
 
-        // 3. LƯU HASHED TOKEN + THỜI HẠN VÀO DB
-        user.resetPasswordToken = hashedToken; // Lưu token đã hash
-        user.resetPasswordExpires = Date.now() + 3600000; // 1 giờ
+        // 2) Gửi email hướng dẫn (KHÔNG lộ mã trên URL)
+        const html = `
+            <p>Xin chào ${user.name},</p>
+            <p>Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản SmartTask.</p>
+            <p><strong>Mã xác minh (OTP): ${code}</strong></p>
+            <p>Mã có hiệu lực trong 10 phút và chỉ dùng 1 lần.</p>
+            <p>Vui lòng quay lại ứng dụng và nhập mã này để đặt mật khẩu mới.</p>
+            <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+        `;
 
-        await user.save({ validateBeforeSave: false }); 
+        try {
+            await sendEmail(user.email, 'Mã đặt lại mật khẩu - SmartTask', html);
+        } catch (emailError) {
+            console.error('❌ Lỗi gửi email OTP:', emailError);
+            // Không fail toàn bộ: người dùng có thể bấm gửi lại
+        }
 
-        // 4. GỬI EMAIL: Dùng token thô để tạo URL
-        const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
-
-        const message = `Bạn đang yêu cầu đặt lại mật khẩu. Vui lòng truy cập đường link sau để hoàn tất quá trình: ${resetUrl}`;
-
-        await sendEmail(
-            user.email,
-            'Yêu cầu Đặt lại Mật khẩu',
-            message
-        );
-        
-        res.json({ message: 'Hướng dẫn đặt lại mật khẩu đã được gửi đến email của bạn.' });
-
+        // 3) Trả kết quả
+        res.json({ message: 'Đã gửi mã xác minh đặt lại mật khẩu tới email của bạn.' });
     } catch (error) {
         console.error('Forgot Password Error:', error);
         res.status(500).json({ message: 'Lỗi máy chủ khi yêu cầu đặt lại mật khẩu.' });
     }
 };
 
-// @mota    Đặt lại mật khẩu (từ trang reset-password)
-// @route   PUT /api/auth/reset-password/:token
+// @mota    ĐẶT LẠI MẬT KHẨU BẰNG MÃ OTP
+// FE gửi: { email, code, password }
+// Kiểm tra: hash(code) == resetCode && resetCodeExpires > now
+// @route   PUT /api/auth/reset-password
 // @access  Public
-exports.resetPassword = async (req, res) => {
-    const { token } = req.params; // Token thô từ URL
-    const { password } = req.body; // Mật khẩu mới
+exports.resetPasswordByCode = async (req, res) => {
+    const { email, code, password } = req.body;
 
-    // 1. HASH TOKEN TỪ URL: Dùng SHA256 giống lúc lưu
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    if (!email || !code || !password) {
+        return res.status(400).json({ message: 'Thiếu email, mã xác minh hoặc mật khẩu mới.' });
+    }
+
+    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
 
     try {
         const user = await User.findOne({
-            resetPasswordToken: hashedToken, // Tìm kiếm bằng hashed token
-            resetPasswordExpires: { $gt: Date.now() }, // Kiểm tra token còn hạn
+            email,
+            resetCode: hashedCode,
+            resetCodeExpires: { $gt: Date.now() },
         });
 
         if (!user) {
-            // Lỗi xảy ra nếu token không khớp Hashed Token trong DB hoặc đã hết hạn
-            return res.status(400).json({ message: 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.' });
+            return res.status(400).json({ message: 'Mã xác minh không hợp lệ hoặc đã hết hạn.' });
         }
 
-        // 2. Hash mật khẩu mới
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
-
-        // 3. Xóa các trường token (vô hiệu hóa link)
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-
-        // 4. Lưu user
+        // Cập nhật mật khẩu mới (pre-save hook sẽ hash)
+        user.password = password;
+        user.clearResetCode();
         await user.save();
 
-        res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
-
-    } catch (error) {
-        console.error('Reset Password Error:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi đặt lại mật khẩu. Vui lòng thử lại sau.' });
-    }
-};
-
-// @mota    Đăng nhập/Đăng ký qua Google
-// @route   POST /api/auth/google-login
-// @access  Public
-exports.resetPassword = async (req, res) => {
-    const { token } = req.params;
-    const { password } = req.body; // Lấy mật khẩu mới
-
-    try {
-        const user = await User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }, // Kiểm tra token còn hạn
+        // 🔐 Trả token + user info để auto-login ngay sau khi đặt lại mật khẩu
+        res.json({
+            message: 'Đặt lại mật khẩu thành công.',
+            user: getCleanUser(user),
+            token: generateToken(user._id),
         });
-
-        if (!user) {
-            // Lỗi này sẽ được Frontend bắt và hiển thị thông báo
-            return res.status(400).json({ message: 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.' });
-        }
-
-        // 1. Hash mật khẩu mới
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
-
-        // 2. Xóa các trường token (để link không dùng được nữa)
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-
-        // 3. Lưu user
-        await user.save();
-
-        // 4. Phản hồi thành công
-        res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
-
     } catch (error) {
         console.error('Reset Password Error:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi đặt lại mật khẩu. Vui lòng thử lại sau.' });
+        res.status(500).json({ message: 'Lỗi máy chủ khi đặt lại mật khẩu.' });
     }
 };
+
+// ⚠️ XÓA duplicate resetPassword handler cũ (token-based) để tránh nhầm lẫn
 
 // @mota    Đăng nhập/Đăng ký bằng Google ID Token
 // @route   POST /api/auth/google-login

@@ -43,6 +43,27 @@
 import toast from 'react-hot-toast';
 import Toast from '../components/ui/ToastComponent';
 
+// Đọc nhanh cài đặt notification từ localStorage để gate toast khi user tắt
+const getStoredNotificationSettings = () => {
+  try {
+    const userRaw = localStorage.getItem('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    return user?.notificationSettings || {};
+  } catch (e) {
+    return {};
+  }
+};
+
+// Chỉ cho phép hiển thị toast khi cài đặt tương ứng đang bật (trừ lỗi vẫn nên hiển thị)
+const isToastAllowed = (type) => {
+  const settings = getStoredNotificationSettings();
+  // Nếu user tắt taskActionToasts => chặn tất cả toast không phải error
+  if (settings.taskActionToasts === false && type !== 'error') {
+    return false;
+  }
+  return true;
+};
+
 /**
  * Default durations per toast type (ms)
  */
@@ -70,6 +91,8 @@ const createToast = (message, type = 'info', options = {}) => {
     action,
     actionLabel,
   } = options;
+
+  if (!isToastAllowed(type)) return null;
 
   return toast.custom(
     (t) => (

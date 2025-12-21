@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../features/useStore";
-import { Loader2, AlertCircle, Lock, Key, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, Lock, Key, CheckCircle2, Mail } from "lucide-react";
 import { useI18n } from "../../utils/i18n";
 
 export const ResetPasswordPage = () => {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get("token"); // Lấy token từ URL
   const navigate = useNavigate();
 
   const { resetPassword, isLoading, error, clearError } = useAuthStore();
+  const location = useLocation();
+  const [email, setEmail] = useState(location?.state?.email || "");
+  const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState(false);
@@ -17,24 +18,25 @@ export const ResetPasswordPage = () => {
 
   useEffect(() => {
     clearError();
-    // Kiểm tra xem token có tồn tại không
-    if (!token) {
-      alert(t('auth.reset.invalidLink'));
-      navigate("/forgot-password");
-    }
-  }, [token, navigate]);
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!email || !code) {
+      alert("Vui lòng nhập email và mã xác minh");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       alert(t('auth.reset.passwordMismatch'));
       return;
     }
 
     try {
-      await resetPassword(token, newPassword);
+      const res = await resetPassword(email, code, newPassword);
       setSuccess(true);
+      // ✅ Auto redirect khi đã nhận token + user (đã set trong store)
+      setTimeout(() => navigate('/dashboard'), 500);
     } catch (err) {
       // Lỗi đã được xử lý trong store
     }
@@ -70,15 +72,12 @@ export const ResetPasswordPage = () => {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('auth.reset.successTitle')}</h2>
               <p className="text-gray-600 dark:text-gray-400 mb-8">{t('auth.reset.successDesc')}</p>
-              <Link
-                to="/login"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl"
-              >
-                {t('auth.reset.backToLogin')}
-              </Link>
+              <div className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl shadow-lg">
+                {t('common.loading')}...
+              </div>
             </div>
           ) : (
-            /* FORM ĐẶT LẠI MẬT KHẨU */
+            /* FORM ĐẶT LẠI MẬT KHẨU BẰNG MÃ OTP */
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50/80 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm border border-red-200 dark:border-red-800/50 animate-in shake duration-300">
@@ -86,6 +85,42 @@ export const ResetPasswordPage = () => {
                   <span>{error}</span>
                 </div>
               )}
+              {/* Email đăng ký */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('auth.forgot.email')}
+                </label>
+                <div className="relative group">
+                  <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-violet-500 transition-colors" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:bg-white dark:focus:bg-gray-900 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition-all duration-200"
+                    placeholder={t('auth.register.emailPlaceholder')}
+                  />
+                </div>
+              </div>
+
+              {/* Mã xác minh (OTP) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('auth.verify.codeLabel')}
+                </label>
+                <div className="relative group">
+                  <Key size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-violet-500 transition-colors" />
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:bg-white dark:focus:bg-gray-900 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition-all duration-200"
+                    placeholder="123456"
+                  />
+                </div>
+              </div>
 
               {/* Mật khẩu mới */}
               <div>
@@ -127,7 +162,7 @@ export const ResetPasswordPage = () => {
 
               <button
                 type="submit"
-                disabled={isLoading || !token}
+                disabled={isLoading}
                 className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -137,6 +172,12 @@ export const ResetPasswordPage = () => {
                 )}
                 {isLoading ? t('auth.reset.processing') : t('auth.reset.submit')}
               </button>
+              <div className="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
+                <Link to="/forgot-password" className="text-violet-600 dark:text-violet-400 hover:underline">
+                  {/* Hướng người dùng quay lại trang gửi mã nếu chưa có */}
+                  Gửi lại mã xác minh
+                </Link>
+              </div>
             </form>
           )}
         </div>

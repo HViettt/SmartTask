@@ -19,13 +19,15 @@
 
 import React from 'react';
 import { CheckCircle2, Clock, Shield, LogIn } from 'lucide-react';
+import { useI18n } from '../../utils/i18n';
 
 export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
+  const { t, locale } = useI18n();
   // Helper: Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
+    return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -42,9 +44,9 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 60) return `${diffMins} phút trước`;
-    if (diffHours < 24) return `${diffHours} giờ trước`;
-    if (diffDays < 30) return `${diffDays} ngày trước`;
+    if (diffMins < 60) return t('common.minutesAgo', { count: diffMins });
+    if (diffHours < 24) return t('common.hoursAgo', { count: diffHours });
+    if (diffDays < 30) return t('common.daysAgo', { count: diffDays });
     return formatDate(dateString);
   };
 
@@ -54,7 +56,7 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
       <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800/50 dark:to-gray-800/30 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Clock size={20} className="text-purple-600 dark:text-purple-400" />
-          Thông tin tài khoản
+          {t('profile.account.title')}
         </h3>
       </div>
 
@@ -63,7 +65,7 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
         {/* Account Created */}
         <DetailItem
           icon={<Clock size={18} className="text-blue-600 dark:text-blue-400" />}
-          label="Ngày tạo tài khoản"
+          label={t('profile.details.created')}
           value={formatDate(profileData.createdAt)}
           subtext={`(${getTimeAgo(profileData.createdAt)})`}
         />
@@ -77,8 +79,8 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
               <Shield size={18} className="text-yellow-600 dark:text-yellow-400" />
             )
           }
-          label="Xác thực email"
-          value={profileData.isVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+          label={t('profile.details.verified')}
+          value={profileData.isVerified ? t('profile.details.verifiedYes') : t('profile.details.verifiedNo')}
           status={profileData.isVerified ? 'verified' : 'pending'}
         />
 
@@ -91,8 +93,8 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
               <LogIn size={18} className="text-indigo-600 dark:text-indigo-400" />
             )
           }
-          label="Phương thức đăng nhập"
-          value={profileData.isGoogleUser ? 'Google SSO' : 'Email & Mật khẩu'}
+          label={t('profile.details.accountType')}
+          value={profileData.isGoogleUser ? t('profile.details.google') : t('profile.details.local')}
           badge={profileData.isGoogleUser ? 'Google' : 'Local'}
         />
 
@@ -103,16 +105,16 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
         {profileData.isGoogleUser && !profileData.hasPassword && (
           <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <p className="text-xs font-medium text-green-900 dark:text-green-200 mb-2">
-              🔐 Tùy chọn bảo mật
+              {t('profile.details.securityPrompt')}
             </p>
             <p className="text-xs text-green-700 dark:text-green-300 mb-3 leading-relaxed">
-              Thiết lập mật khẩu để đăng nhập bằng Email + Password bên cạnh Google.
+              {t('profile.security.setupDesc')}
             </p>
             <button 
               onClick={onSetupPassword}
               className="text-xs font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
             >
-              Thiết lập mật khẩu →
+              {t('profile.security.setPassword')}
             </button>
           </div>
         )}
@@ -120,13 +122,13 @@ export const AccountDetailsCard = ({ profileData, onSetupPassword }) => {
         {/* Help & Support */}
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-xs font-medium text-blue-900 dark:text-blue-200 mb-2">
-            📞 Cần trợ giúp?
+            {t('profile.details.supportTitle')}
           </p>
           <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-            Nếu bạn gặp vấn đề với tài khoản, vui lòng liên hệ đội hỗ trợ của chúng tôi.
+            {t('profile.details.supportDesc')}
           </p>
           <button className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-            Liên hệ hỗ trợ →
+            {t('profile.details.supportCta')}
           </button>
         </div>
       </div>

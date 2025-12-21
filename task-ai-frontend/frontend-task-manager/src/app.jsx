@@ -132,6 +132,8 @@ const App = () => {
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      {/* Alias để phù hợp yêu cầu UX: /verify-otp */}
+      <Route path="/verify-otp" element={<ResetPasswordPage />} />
 
       {/* Protected Layout */}
       <Route

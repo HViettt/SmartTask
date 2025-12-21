@@ -50,8 +50,8 @@ export const NotificationCenter = () => {
     // Load ban đầu
     fetchNotifications(false);
 
-    // Polling mỗi 30s
-    const interval = setInterval(() => fetchNotifications(true), 30000);
+    // Polling mỗi 10s cho real-time tốt hơn
+    const interval = setInterval(() => fetchNotifications(true), 10000);
 
     // Window event listeners
     const onFocus = () => fetchNotifications(true);

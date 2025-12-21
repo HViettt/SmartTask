@@ -11,8 +11,21 @@ const { NOTIFICATION_TYPES } = require('../common/constants');
 exports.getNotifications = async (req, res) => {
   try {
     const { unreadOnly = false } = req.query;
+    // ✅ Gate theo cài đặt người dùng: nếu tắt thông báo, không trả về loại bị tắt
+    const User = require('../models/User');
+    const user = await User.findById(req.user._id).select('notificationSettings').lean();
+    const settings = user?.notificationSettings || {};
 
-    const allowedTypes = Object.values(NOTIFICATION_TYPES);
+    let allowedTypes = Object.values(NOTIFICATION_TYPES);
+    // Nếu tắt email → bỏ EMAIL_SENT
+    if (settings.emailNotifications === false) {
+      allowedTypes = allowedTypes.filter(t => t !== NOTIFICATION_TYPES.EMAIL_SENT);
+    }
+    // Nếu tắt deadline → bỏ DUE_SOON và OVERDUE
+    if (settings.deadlineNotifications === false) {
+      allowedTypes = allowedTypes.filter(t => t !== NOTIFICATION_TYPES.DUE_SOON && t !== NOTIFICATION_TYPES.OVERDUE);
+    }
+
     const matchStage = { userId: req.user._id, type: { $in: allowedTypes } };
     if (unreadOnly === 'true') {
       matchStage.read = false;
@@ -32,6 +45,7 @@ exports.getNotifications = async (req, res) => {
 
     const notifications = await Notification.aggregate(pipeline);
 
+    // ✅ Unread badge cũng phải gate theo cài đặt, tránh tăng badge khi user đã tắt
     const unreadCount = await Notification.countDocuments({
       userId: req.user._id,
       type: { $in: allowedTypes },
@@ -191,6 +205,13 @@ exports.ingestEmailNotification = async (req, res) => {
     const existing = await Notification.findOne({ userId: req.user._id, provider, externalId: messageId });
     if (existing) {
       return res.status(200).json({ message: 'Thông báo đã tồn tại', notification: existing });
+    }
+
+    // ✅ Gate: nếu user tắt email notifications → không tạo thông báo email
+    const User = require('../models/User');
+    const user = await User.findById(req.user._id).select('notificationSettings').lean();
+    if (user?.notificationSettings?.emailNotifications === false) {
+      return res.status(200).json({ message: 'Email notifications đã tắt. Bỏ qua ghi thông báo.' });
     }
 
     const notification = await Notification.create({

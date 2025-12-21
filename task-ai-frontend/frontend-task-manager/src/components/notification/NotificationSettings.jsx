@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, Check, Settings } from 'lucide-react';
+import { Bell, X, Check, Settings, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { showToast } from '../../utils/toastUtils';
 import { useI18n } from '../../utils/i18n';
+import { useAuthStore } from '../../features/useStore';
 
 const DEFAULT_SETTINGS = {
   emailNotifications: true,
@@ -13,11 +14,14 @@ const DEFAULT_SETTINGS = {
 
 export const NotificationSettings = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { t } = useI18n();
+  const { user, updateUserInfo } = useAuthStore();
 
   useEffect(() => {
     if (isOpen) {
+      setIsLoading(true);
       loadSettings();
     }
   }, [isOpen]);
@@ -25,20 +29,34 @@ export const NotificationSettings = ({ isOpen, onClose }) => {
   const loadSettings = async () => {
     try {
       const res = await api.get('/user/settings');
-      const backendSettings = { ...DEFAULT_SETTINGS, ...(res.data.notificationSettings || {}) };
-      setSettings(backendSettings);
+      // Đảm bảo lấy đúng structure từ backend
+      const backendSettings = res.data?.notificationSettings || res.data || {};
+      const mergedSettings = { ...DEFAULT_SETTINGS, ...backendSettings };
+      setSettings(mergedSettings);
+      // Đồng bộ vào user trong store để các nơi khác đọc được settings
+      if (user) {
+        updateUserInfo({ ...user, notificationSettings: mergedSettings });
+      }
     } catch (error) {
-      // Silent error - keep default settings
+      console.error('Load settings error:', error);
+      // Keep default settings on error
+      setSettings(DEFAULT_SETTINGS);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
+      // Gửi settings phẳng (backend hỗ trợ cả 2 dạng)
       await api.put('/user/settings', settings);
       showToast.success(t('notifications.saveSuccess'));
+      // Reload lại settings để đảm bảo sync với server
+      await loadSettings();
       onClose();
     } catch (error) {
+      console.error('Save settings error:', error);
       showToast.error(t('notifications.saveError'));
     } finally {
       setSaving(false);
@@ -76,29 +94,34 @@ export const NotificationSettings = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <Bell size={16} className="text-blue-600" />
-                  <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                    {t('notifications.settingsModal.email.title')}
-                  </h4>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Bell size={16} className="text-blue-600" />
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                      {t('notifications.settingsModal.email.title')}
+                    </h4>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('notifications.settingsModal.email.desc')}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t('notifications.settingsModal.email.desc')}
-                </p>
+                <label className="relative inline-flex items-center cursor-pointer ml-3">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.emailNotifications}
+                    onChange={() => handleToggle('emailNotifications')}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer ml-3">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={settings.emailNotifications}
-                  onChange={() => handleToggle('emailNotifications')}
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
 
             <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
               <div className="flex-1">
@@ -168,18 +191,20 @@ export const NotificationSettings = ({ isOpen, onClose }) => {
                 <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
               </label>
             </div>
-        </div>
+          </div>
+        )}
 
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            disabled={isLoading}
+            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
           >
             {t('notifications.settingsModal.cancel')}
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || isLoading}
             className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm disabled:opacity-50 transition-all"
           >
             {saving ? t('notifications.settingsModal.saving') : t('notifications.settingsModal.save')}

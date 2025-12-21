@@ -185,6 +185,11 @@ const upsertSystemNotification = async (userId, type, payload = {}) => {
 // Chỉ thông báo trạng thái gửi thành công/thất bại
 const syncEmailNotificationFromLog = async (log) => {
     if (!log) return;
+    // Tôn trọng cài đặt người dùng: nếu tắt emailNotifications thì KHÔNG tạo notification
+    const user = await User.findById(log.userId).select('notificationSettings');
+    if (!user?.notificationSettings?.emailNotifications) {
+        return; // skip tạo notification EMAIL_SENT
+    }
     const severity = log.status === 'failed' ? 'warn' : 'info';
     const message = log.status === 'failed'
         ? 'Email nhắc việc gặp lỗi khi gửi'
@@ -199,6 +204,13 @@ const syncEmailNotificationFromLog = async (log) => {
 
 // Cập nhật 2 loại thông báo deadline (DUE_SOON, OVERDUE) dựa trên bucket sẵn có
 const refreshUserDeadlineNotifications = async (userId, bucket, { fetchIfMissing = true } = {}) => {
+    // Tôn trọng cài đặt người dùng cho deadline notifications
+    const user = await User.findById(userId).select('notificationSettings');
+    const allowDeadline = !!(user?.notificationSettings?.deadlineNotifications);
+    if (!allowDeadline) {
+        // Nếu user đã tắt: không tạo/không set unread/không update badge
+        return null;
+    }
     let upcoming = bucket?.upcoming || [];
     let overdue = bucket?.overdue || [];
 
@@ -426,8 +438,8 @@ const initializeScheduler = () => {
         }
     });
     
-    // Kiểm tra overdue tasks mỗi 30 phút
-    const overdueJob = schedule.scheduleJob('*/30 * * * *', async () => {
+    // Kiểm tra overdue tasks mỗi 5 phút cho real-time
+    const overdueJob = schedule.scheduleJob('*/5 * * * *', async () => {
         console.log('🔄 [Scheduler] Checking overdue tasks...');
         try {
             await checkAndUpdateOverdueTasks();
@@ -439,7 +451,7 @@ const initializeScheduler = () => {
     
     console.log('✅ [Scheduler] Scheduler initialized successfully');
     console.log('📅 [Scheduler] Email digest: Daily at 2:00 AM UTC (9:00 AM VN)');
-    console.log('📅 [Scheduler] Overdue check: Every 30 minutes');
+    console.log('📅 [Scheduler] Overdue check: Every 5 minutes');
     
     return { deadlineJob, overdueJob };
 };

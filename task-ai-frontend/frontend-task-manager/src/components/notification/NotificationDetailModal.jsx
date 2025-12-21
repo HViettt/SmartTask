@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, AlertCircle, Clock } from 'lucide-react';
 import { useI18n } from '../../utils/i18n';
+import { parseDeadlineDateTime } from '../../utils/deadlineHelpers';
 import { useDeadlineStats } from '../../hooks/useDeadlineStats';
 
 const formatDateTime = (value, locale) => {
@@ -30,22 +31,28 @@ const Pill = ({ label, tone = 'gray' }) => {
   );
 };
 
-const TaskRow = ({ task, onOpen }) => (
-  <div
-    className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-indigo-300 hover:shadow-sm transition"
-    onClick={() => onOpen && onOpen(task._id)}
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <p className="font-semibold text-gray-900 dark:text-white">{task.title}</p>
-      </div>
-      <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-        <Clock size={14} />
-        <span>{formatDateTime(task.deadline, task.locale)}</span>
+const TaskRow = ({ task, onOpen, locale }) => {
+  const dateObj = parseDeadlineDateTime(task.deadline, task.deadlineTime || '23:59');
+  const display = dateObj
+    ? dateObj.toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+  return (
+    <div
+      className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-indigo-300 hover:shadow-sm transition"
+      onClick={() => onOpen && onOpen(task._id)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-gray-900 dark:text-white">{task.title}</p>
+        </div>
+        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+          <Clock size={14} />
+          <span>{display}</span>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const NotificationDetailModal = ({ notification, onClose, onCloseDropdown }) => {
   const navigate = useNavigate();
@@ -110,7 +117,7 @@ export const NotificationDetailModal = ({ notification, onClose, onCloseDropdown
           <Pill label={t('notifications.detail.overdue', { count: overdueTasks.length })} tone="red" />
           <div className="max-h-96 overflow-y-auto space-y-3">
             {overdueTasks.map(task => (
-              <TaskRow key={task._id || task.title} task={{ ...task, locale }} onOpen={goToTask} />
+              <TaskRow key={task._id || task.title} task={task} onOpen={goToTask} locale={locale} />
             ))}
           </div>
         </div>
@@ -122,7 +129,7 @@ export const NotificationDetailModal = ({ notification, onClose, onCloseDropdown
         <Pill label={t('notifications.detail.upcoming', { count: dueSoonTasks.length })} tone="amber" />
         <div className="max-h-96 overflow-y-auto space-y-3">
           {dueSoonTasks.map(task => (
-            <TaskRow key={task._id || task.title} task={{ ...task, locale }} onOpen={goToTask} />
+            <TaskRow key={task._id || task.title} task={task} onOpen={goToTask} locale={locale} />
           ))}
         </div>
       </div>

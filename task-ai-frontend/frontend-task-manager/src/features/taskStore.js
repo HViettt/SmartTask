@@ -33,13 +33,27 @@ export const useTaskStore = create((set, get) => ({
     }
   },
 
-  // TẠO CÔNG VIỆC MỚI
+  // TẠO CÔNG VIỆC MỚI (với optimistic update)
   addTask: async (taskData) => {
-    set({ isLoading: true, error: null });
+    // Tạo temporary task để hiển thị ngay
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTask = {
+      _id: tempId,
+      ...taskData,
+      status: taskData.status || TaskStatus.TODO,
+      createdAt: new Date().toISOString(),
+      userId: 'temp', // placeholder
+      isOptimistic: true, // flag để styling nếu cần
+    };
+
+    // Thêm ngay vào state (optimistic update)
+    set((state) => ({
+      tasks: [optimisticTask, ...state.tasks],
+      isLoading: false,
+    }));
 
     try {
       // Payload đã đúng định dạng từ types.js (ví dụ: 'Medium', 'Todo')
-      // Đảm bảo status mặc định là 'Todo' nếu không truyền
       const finalPayload = {
         ...taskData,
         status: taskData.status || TaskStatus.TODO,
@@ -50,16 +64,25 @@ export const useTaskStore = create((set, get) => ({
       // ✅ Backend returns { success, data, message }
       const newTask = res.data.data || res.data;
 
+      // Thay thế optimistic task bằng task thật từ server
       set((state) => ({
-        tasks: [newTask, ...state.tasks],
+        tasks: state.tasks.map(t => 
+          t._id === tempId ? newTask : t
+        ),
         isLoading: false,
       }));
 
       return newTask; // Trả về task vừa tạo để hiện toast
     } catch (err) {
+      // Rollback: xóa optimistic task nếu lỗi
+      set((state) => ({
+        tasks: state.tasks.filter(t => t._id !== tempId),
+        isLoading: false,
+      }));
+
       const serverMsg = err.response?.data?.message || err.response?.data || null;
       const msg = serverMsg || "Không thể thêm công việc.";
-      set({ error: msg, isLoading: false });
+      set({ error: msg });
 
       // Ném lại lỗi để component phía trên có thể bắt và xử lý
       throw err;

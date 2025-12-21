@@ -28,6 +28,7 @@
 
 import React from 'react';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { useI18n } from '../../utils/i18n';
 
 export const ChangePasswordForm = ({
   passwordData,
@@ -37,12 +38,14 @@ export const ChangePasswordForm = ({
   isChangingPassword,
   onChangePassword,
 }) => {
+  const { t } = useI18n();
+  
   return (
     <form onSubmit={onChangePassword} className="space-y-6">
       {/* Current Password */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          Mật khẩu hiện tại <span className="text-red-500">*</span>
+          {t('profile.security.currentPassword')} <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
@@ -54,7 +57,7 @@ export const ChangePasswordForm = ({
                 currentPassword: e.target.value,
               })
             }
-            placeholder="Nhập mật khẩu hiện tại"
+            placeholder={t('profile.security.currentPlaceholder')}
             disabled={isChangingPassword}
             className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg
                        focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
@@ -83,7 +86,7 @@ export const ChangePasswordForm = ({
       {/* New Password */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          Mật khẩu mới <span className="text-red-500">*</span>
+          {t('profile.security.newPassword')} <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
@@ -95,7 +98,7 @@ export const ChangePasswordForm = ({
                 newPassword: e.target.value,
               })
             }
-            placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+            placeholder={t('profile.security.newPlaceholder')}
             disabled={isChangingPassword}
             className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg
                        focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
@@ -120,14 +123,14 @@ export const ChangePasswordForm = ({
           </button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-          Mật khẩu phải có ít nhất 6 ký tự, nên bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt
+          {t('profile.security.passwordHint')}
         </p>
       </div>
 
       {/* Confirm Password */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          Xác nhận mật khẩu mới <span className="text-red-500">*</span>
+          {t('profile.security.confirmPassword')} <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
@@ -139,7 +142,7 @@ export const ChangePasswordForm = ({
                 confirmPassword: e.target.value,
               })
             }
-            placeholder="Nhập lại mật khẩu mới"
+            placeholder={t('profile.security.confirmPlaceholder')}
             disabled={isChangingPassword}
             className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg
                        focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
@@ -178,12 +181,12 @@ export const ChangePasswordForm = ({
         {isChangingPassword ? (
           <>
             <Loader2 size={18} className="animate-spin" />
-            Đang xử lý...
+            {t('profile.security.updating')}
           </>
         ) : (
           <>
             <CheckCircle2 size={18} />
-            Đổi mật khẩu
+            {t('profile.security.submit')}
           </>
         )}
       </button>

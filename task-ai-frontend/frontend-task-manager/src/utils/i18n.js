@@ -341,6 +341,58 @@ const dictionaries = {
         invalidLink: 'Liên kết đặt lại mật khẩu không hợp lệ.',
         passwordMismatch: 'Mật khẩu xác nhận không khớp!'
       }
+    },
+    profile: {
+      title: 'Hồ sơ',
+      subtitle: 'Quản lý tài khoản và bảo mật của bạn',
+      sections: {
+        info: 'Thông tin',
+        security: 'Bảo mật'
+      },
+      account: {
+        title: 'Thông tin tài khoản',
+        name: 'Họ tên',
+        namePlaceholder: 'Nhập họ tên của bạn',
+        email: 'Email',
+        emailNote: 'Địa chỉ email không thể thay đổi',
+        avatar: 'Ảnh đại diện',
+        changeAvatar: 'Đổi ảnh đại diện',
+        save: 'Lưu thay đổi',
+        saving: 'Đang lưu...'
+      },
+      details: {
+        title: 'Chi tiết tài khoản',
+        accountType: 'Phương thức đăng nhập',
+        local: 'Email/Mật khẩu',
+        google: 'Tài khoản Google',
+        created: 'Ngày tạo tài khoản',
+        securityPrompt: '🔐 Tùy chọn bảo mật',
+        supportTitle: '📞 Cần trợ giúp?',
+        supportDesc: 'Nếu bạn gặp vấn đề với tài khoản, vui lòng liên hệ đội hỗ trợ của chúng tôi.',
+        supportCta: 'Liên hệ hỗ trợ →',
+        verified: 'Trạng thái',
+        verifiedYes: 'Đã xác minh',
+        verifiedNo: 'Chưa xác minh',
+        hasPassword: 'Đã có mật khẩu',
+        setupPassword: 'Thiết lập mật khẩu'
+      },
+      security: {
+        title: 'Bảo mật',
+        setupTitle: 'Thiết lập mật khẩu',
+        setupDesc: 'Bạn có thể thiết lập mật khẩu để đăng nhập bằng Email + Password bên cạnh Google.',
+        changePassword: 'Đổi mật khẩu',
+        currentPassword: 'Mật khẩu hiện tại',
+        newPassword: 'Mật khẩu mới',
+        confirmPassword: 'Xác nhận mật khẩu mới',
+        currentPlaceholder: 'Nhập mật khẩu hiện tại',
+        newPlaceholder: 'Nhập mật khẩu mới (tối thiểu 6 ký tự)',
+        confirmPlaceholder: 'Nhập lại mật khẩu mới',
+        passwordHint: 'Mật khẩu phải có ít nhất 6 ký tự, nên bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt',
+        submit: 'Cập nhật Mật khẩu',
+        updating: 'Đang cập nhật...',
+        setPassword: 'Đặt Mật khẩu',
+        setting: 'Đang thiết lập...'
+      }
     }
   },
   en: {
@@ -640,6 +692,57 @@ const dictionaries = {
         backToLogin: 'Back to Login',
         invalidLink: 'Reset password link is invalid.',
         passwordMismatch: 'Passwords do not match!'
+      }
+    },
+    profile: {
+      title: 'Profile',
+      sections: {
+        info: 'Information',
+        security: 'Security'
+      },
+      account: {
+        title: 'Account Information',
+        name: 'Full name',
+        namePlaceholder: 'Your full name',
+        email: 'Email',
+        avatar: 'Avatar',
+        changeAvatar: 'Change avatar',
+        save: 'Save Changes',
+        saving: 'Saving...'
+      },
+      details: {
+        title: 'Account Details',
+        accountType: 'Sign-in method',
+        local: 'Email/Password',
+        google: 'Google account',
+        created: 'Account created',
+        securityPrompt: '🔐 Security option',
+        supportTitle: '📞 Need help?',
+        supportDesc: 'If you have any issues with your account, please contact our support team.',
+        supportCta: 'Contact support →',
+        verified: 'Status',
+        verifiedYes: 'Verified',
+        verifiedNo: 'Not verified',
+        hasPassword: 'Has password',
+        setupPassword: 'Setup password'
+      },
+      subtitle: 'Manage your account and security',
+      security: {
+        title: 'Security',
+        setupTitle: 'Setup password',
+        setupDesc: 'You can set up a password to sign in with Email + Password besides Google.',
+        changePassword: 'Change password',
+        currentPassword: 'Current password',
+        newPassword: 'New password',
+        confirmPassword: 'Confirm new password',
+        currentPlaceholder: 'Enter current password',
+        newPlaceholder: 'Enter new password (min 6 chars)',
+        confirmPlaceholder: 'Re-enter new password',
+        passwordHint: 'Password must be at least 6 characters, should include uppercase, lowercase, numbers and special characters',
+        submit: 'Update Password',
+        updating: 'Updating...',
+        setPassword: 'Set Password',
+        setting: 'Setting...'
       }
     }
   }

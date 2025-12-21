@@ -15,7 +15,8 @@ exports.getNotificationSettings = async (req, res) => {
         emailNotifications: true,
         taskActionToasts: true,
         webEntryAlerts: true,
-        taskStatusNotifications: true
+        taskStatusNotifications: true,
+        deadlineNotifications: true
       }
     });
   } catch (error) {
@@ -56,18 +57,20 @@ exports.updatePreferences = async (req, res) => {
 // PUT /api/user/settings - Cập nhật cài đặt thông báo
 exports.updateNotificationSettings = async (req, res) => {
   try {
-    const { emailNotifications, taskActionToasts, webEntryAlerts, taskStatusNotifications } = req.body;
+    // Cho phép nhận payload dạng phẳng hoặc notificationSettings: {}
+    const payload = req.body?.notificationSettings || req.body || {};
+    const { emailNotifications, taskActionToasts, webEntryAlerts, taskStatusNotifications, deadlineNotifications } = payload;
+
+    const updates = {};
+    if (typeof emailNotifications === 'boolean') updates['notificationSettings.emailNotifications'] = emailNotifications;
+    if (typeof taskActionToasts === 'boolean') updates['notificationSettings.taskActionToasts'] = taskActionToasts;
+    if (typeof webEntryAlerts === 'boolean') updates['notificationSettings.webEntryAlerts'] = webEntryAlerts;
+    if (typeof taskStatusNotifications === 'boolean') updates['notificationSettings.taskStatusNotifications'] = taskStatusNotifications;
+    if (typeof deadlineNotifications === 'boolean') updates['notificationSettings.deadlineNotifications'] = deadlineNotifications;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      {
-        $set: {
-          'notificationSettings.emailNotifications': emailNotifications,
-          'notificationSettings.taskActionToasts': taskActionToasts,
-          'notificationSettings.webEntryAlerts': webEntryAlerts,
-          'notificationSettings.taskStatusNotifications': taskStatusNotifications
-        }
-      },
+      { $set: updates },
       { new: true, runValidators: true }
     ).select('notificationSettings');
 
@@ -272,7 +275,8 @@ exports.changePassword = async (req, res) => {
     // 4. Verify current password
     const isMatch = await user.matchPassword(currentPassword);
     if (!isMatch) {
-      return res.status(401).json({ 
+      // Trả về 400 để KHÔNG kích hoạt global logout (tránh văng về login)
+      return res.status(400).json({ 
         success: false,
         message: 'Mật khẩu hiện tại không đúng' 
       });

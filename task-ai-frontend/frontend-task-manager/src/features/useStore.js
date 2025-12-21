@@ -259,23 +259,30 @@ export const useAuthStore = create((set, get) => ({
         }
     },
 
-    // ĐẶT LẠI MẬT KHẨU
-    resetPassword: async (token, newPassword) => {
+    // ĐẶT LẠI MẬT KHẨU BẰNG MÃ OTP
+    resetPassword: async (email, code, newPassword) => {
         set({ isLoading: true, error: null });
         try {
-            // Gọi API Backend: PUT /api/auth/reset-password/:token
-            const res = await api.put(`/auth/reset-password/${token}`, { 
-                password: newPassword, // Gửi mật khẩu mới
+            // Gọi API Backend: PUT /api/auth/reset-password (OTP) và nhận token + user để auto-login
+            const res = await api.put('/auth/reset-password', {
+                email,
+                code,
+                password: newPassword,
             });
-            
-            // Không cần lưu user/token vì người dùng phải tự đăng nhập lại
+
+            // Nếu backend trả token/user: auto-login
+            if (res.data?.token && res.data?.user) {
+                setToken(res.data.token);
+                setUserData(res.data.user);
+                set({ user: res.data.user });
+            }
+
             set({ isLoading: false });
             return res.data; // Trả về thông báo thành công
         } catch (error) {
-            // Lấy thông báo lỗi từ Backend để hiển thị (ví dụ: token hết hạn)
             const errorMessage = error.response?.data?.message || 'Lỗi đặt lại mật khẩu không xác định.';
             set({ error: errorMessage, isLoading: false });
-            throw error; // Quan trọng để component bắt được lỗi
+            throw error;
         }
     },
     

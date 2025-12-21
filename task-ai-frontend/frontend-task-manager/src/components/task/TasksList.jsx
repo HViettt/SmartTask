@@ -47,10 +47,11 @@ export const TaskList = () => {
   // Ref để scroll đến task
   const taskRefs = useRef({});
 
-  // Fetch tasks on mount
+  // Fetch tasks on mount only
   useEffect(() => {
     fetchTasks();
-  }, [fetchTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - chỉ chạy 1 lần khi mount
 
   // Clear error after 5 seconds
   useEffect(() => {

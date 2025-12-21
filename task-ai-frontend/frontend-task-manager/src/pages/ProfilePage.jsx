@@ -32,6 +32,7 @@ import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { AccountInfoCard } from '../components/profile/AccountInfoCard';
 import { SecurityCard } from '../components/profile/SecurityCard';
 import { AccountDetailsCard } from '../components/profile/AccountDetailsCard';
+import { useI18n } from '../utils/i18n';
 
 // Custom Hook
 import { useProfileLogic } from '../hooks/useProfileLogic';
@@ -40,6 +41,7 @@ const ProfilePage = () => {
   // ===== STATE MANAGEMENT =====
   const { updateUserInfo } = useAuthStore();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [activeSection, setActiveSection] = useState('info'); // 'info' or 'security'
 
@@ -70,7 +72,7 @@ const ProfilePage = () => {
         await fetchProfile();
       } catch (error) {
         console.error('Failed to load profile:', error);
-        showToast.error('Không thể tải thông tin profile');
+        showToast.error(t('common.error'));
       } finally {
         setIsLoadingProfile(false);
       }
@@ -110,7 +112,7 @@ const ProfilePage = () => {
                   : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-300'
               }`}
           >
-            Thông tin
+            {t('profile.sections.info')}
           </button>
           <button
             onClick={() => setActiveSection('security')}
@@ -121,7 +123,7 @@ const ProfilePage = () => {
                   : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-300'
               }`}
           >
-            Bảo mật
+            {t('profile.sections.security')}
           </button>
         </div>
 

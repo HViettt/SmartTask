@@ -242,6 +242,7 @@ export const useProfileLogic = () => {
         const errorMsg =
           error.response?.data?.message || 'Không thể đổi mật khẩu';
         showToast.error(errorMsg);
+        // Không throw error để tránh redirect ra login
       } finally {
         setIsChangingPassword(false);
       }

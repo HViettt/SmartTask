@@ -26,6 +26,7 @@
 import React from 'react';
 import { Mail, Loader2, Save, CheckCircle2, Shield } from 'lucide-react';
 import { AvatarUpload } from './AvatarUpload';
+import { useI18n } from '../../utils/i18n';
 
 export const AccountInfoCard = ({
   profileData,
@@ -35,13 +36,14 @@ export const AccountInfoCard = ({
   onUpdateProfile,
   setProfileData,
 }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Card Header */}
       <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-emerald-50 dark:from-gray-800/50 dark:to-gray-800/30 border-b border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Shield size={20} className="text-blue-600 dark:text-blue-400" />
-          Thông tin tài khoản
+          {t('profile.account.title')}
         </h2>
       </div>
 
@@ -67,7 +69,7 @@ export const AccountInfoCard = ({
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <Mail size={16} className="text-gray-500" />
-                Email
+                {t('profile.account.email')}
               </label>
               <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-600 rounded-lg">
                 <span className="flex-1 text-gray-700 dark:text-gray-300 font-medium break-all">
@@ -76,19 +78,19 @@ export const AccountInfoCard = ({
                 {profileData.isGoogleUser && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium whitespace-nowrap">
                     <Shield size={14} />
-                    Google
+                    {t('profile.details.google')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                Địa chỉ email không thể thay đổi
+                {t('profile.account.emailNote')}
               </p>
             </div>
 
             {/* Display Name Field (Editable) */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Tên hiển thị <span className="text-red-500">*</span>
+                {t('profile.account.displayName')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -99,7 +101,7 @@ export const AccountInfoCard = ({
                     name: e.target.value,
                   })
                 }
-                placeholder="Nhập tên của bạn"
+                placeholder={t('profile.account.namePlaceholder')}
                 disabled={isSavingProfile}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg
                            focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 
@@ -109,7 +111,7 @@ export const AccountInfoCard = ({
                 required
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                Tên này sẽ được hiển thị trên toàn bộ ứng dụng
+                {t('profile.account.displayHint')}
               </p>
             </div>
           </div>
@@ -130,12 +132,12 @@ export const AccountInfoCard = ({
             {isSavingProfile ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Đang lưu...
+                {t('profile.account.saving')}
               </>
             ) : (
               <>
                 <Save size={18} />
-                Lưu thay đổi
+                {t('profile.account.save')}
               </>
             )}
           </button>

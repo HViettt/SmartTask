@@ -7,8 +7,8 @@ router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/verify-email', authController.verifyEmail);
 router.post('/forgot-password', authController.forgotPassword);
-// Route mới để xử lý token reset password
-router.put('/reset-password/:token', authController.resetPassword); 
+// Đặt lại mật khẩu bằng mã OTP (email + code + password)
+router.put('/reset-password', authController.resetPasswordByCode); 
 // Route mới cho login với google
 router.post('/google-login', authController.loginGoogle);
 // Route để lấy thông tin user đã đăng nhập
