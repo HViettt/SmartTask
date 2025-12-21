@@ -295,6 +295,7 @@ const getTodayDateVN = () => {
 
 const processDeadlineNotifications = async () => {
     try {
+        console.log('📧 [Email Digest] Starting process...');
         const now = new Date();
         const today = new Date(now);
         today.setUTCHours(0, 0, 0, 0);
@@ -304,13 +305,19 @@ const processDeadlineNotifications = async () => {
         const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
         const todayDateStr = getTodayDateVN();
         
+        console.log(`📧 [Email Digest] Date: ${todayDateStr}`);
+        
         const incompleteTasks = await Task.find({
             status: { $ne: 'Done' },
             deadline: { $exists: true, $ne: null }
         }).lean();
 
+        console.log(`📧 [Email Digest] Found ${incompleteTasks.length} incomplete tasks with deadlines`);
+
         const bucketsByUser = buildDeadlineBucketsByTasks(incompleteTasks);
         const userIds = Array.from(bucketsByUser.keys());
+        
+        console.log(`📧 [Email Digest] Processing ${userIds.length} users`);
         
         let emailsSent = 0;
         let emailsSkipped = 0;
@@ -371,8 +378,14 @@ const processDeadlineNotifications = async () => {
                 
             } catch (userError) {
                 emailsFailed++;
+                console.error(`❌ [Email Digest] Error for user ${userId}:`, userError.message);
             }
         }
+        
+        console.log(`📧 [Email Digest] Summary:`);
+        console.log(`   ✅ Sent: ${emailsSent}`);
+        console.log(`   ⏭️  Skipped: ${emailsSkipped}`);
+        console.log(`   ❌ Failed: ${emailsFailed}`);
         
     } catch (error) {
         console.error('[Scheduler] Lỗi xử lý deadline notifications:', error.message);
@@ -397,13 +410,36 @@ const checkAndUpdateOverdueTasks = async () => {
 };
 
 const initializeScheduler = () => {
-    const deadlineJob = schedule.scheduleJob('0 0 9 * * *', async () => {
-        await processDeadlineNotifications();
+    console.log('⏰ [Scheduler] Initializing task scheduler...');
+    console.log(`⏰ [Scheduler] Server time: ${new Date().toISOString()}`);
+    console.log(`⏰ [Scheduler] VN time: ${moment.tz(VN_TIMEZONE).format('YYYY-MM-DD HH:mm:ss')}`);
+    
+    // Chạy lúc 2:00 AM UTC = 9:00 AM giờ VN (UTC+7)
+    const deadlineJob = schedule.scheduleJob('0 0 2 * * *', async () => {
+        console.log('📧 [Scheduler] Daily email digest started at:', new Date().toISOString());
+        console.log('📧 [Scheduler] VN time:', moment.tz(VN_TIMEZONE).format('YYYY-MM-DD HH:mm:ss'));
+        try {
+            await processDeadlineNotifications();
+            console.log('✅ [Scheduler] Daily email digest completed successfully');
+        } catch (error) {
+            console.error('❌ [Scheduler] Daily email digest failed:', error.message);
+        }
     });
     
+    // Kiểm tra overdue tasks mỗi 30 phút
     const overdueJob = schedule.scheduleJob('*/30 * * * *', async () => {
-        await checkAndUpdateOverdueTasks();
+        console.log('🔄 [Scheduler] Checking overdue tasks...');
+        try {
+            await checkAndUpdateOverdueTasks();
+            console.log('✅ [Scheduler] Overdue check completed');
+        } catch (error) {
+            console.error('❌ [Scheduler] Overdue check failed:', error.message);
+        }
     });
+    
+    console.log('✅ [Scheduler] Scheduler initialized successfully');
+    console.log('📅 [Scheduler] Email digest: Daily at 2:00 AM UTC (9:00 AM VN)');
+    console.log('📅 [Scheduler] Overdue check: Every 30 minutes');
     
     return { deadlineJob, overdueJob };
 };
