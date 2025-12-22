@@ -90,7 +90,7 @@ const sendEmail = async (to, subject, htmlContent) => {
         console.log(`Subject: ${subject}`);
         console.log(`Content: ${htmlContent.replace(/<[^>]*>/g, '').substring(0, 300)}...`);
         console.warn('===========================================================');
-        return;
+        return true; // Thành công trong dev mode
     }
     
     try {
@@ -101,9 +101,12 @@ const sendEmail = async (to, subject, htmlContent) => {
             html: htmlContent, // Sử dụng html thay vì text
         });
         console.log(`✅ Email sent to ${to}`);
+        return true;
     } catch (error) {
-        console.error('❌ Error sending email:', error);
-        throw new Error('Lỗi khi gửi email xác nhận. Vui lòng kiểm tra cấu hình SMTP.');
+        console.error('❌ Error sending email:', error.message);
+        // Không throw error - hãy ghi log nhưng cho phép đăng ký tiếp tục
+        console.warn(`⚠️ Email gửi thất bại, nhưng cho phép tiếp tục đăng ký`);
+        return false;
     }
 };
 
@@ -112,6 +115,11 @@ const sendEmail = async (to, subject, htmlContent) => {
 // @access  Public
 exports.register = async (req, res, next) => {
     const { name, email, password } = req.body;
+
+    // Kiểm tra input
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ tên, email và mật khẩu.' });
+    }
 
     // 1. Kiểm tra user đã tồn tại
     const userExists = await User.findOne({ email });
@@ -138,18 +146,33 @@ exports.register = async (req, res, next) => {
 
             // 4. Gửi Email (Gửi Code thay vì URL)
             // Thay vì tạo URL, gửi CODE
-            const message = `Chào mừng ${user.name},\n\nMã xác minh email của bạn là: ${verificationCode}\n\nVui lòng nhập mã này vào trang web để hoàn tất đăng ký. Mã sẽ hết hạn sau 15 phút.`;
+            const emailContent = `
+                <html>
+                    <body>
+                        <h2>Chào mừng ${user.name},</h2>
+                        <p>Mã xác minh email của bạn là:</p>
+                        <h1 style="color: #10b981; font-family: monospace; letter-spacing: 2px;">${verificationCode}</h1>
+                        <p>Vui lòng nhập mã này vào trang web để hoàn tất đăng ký.</p>
+                        <p><strong>Mã sẽ hết hạn sau 15 phút.</strong></p>
+                        <p>SmartTask AI Team</p>
+                    </body>
+                </html>
+            `;
 
-            // Gọi hàm gửi email
-            await sendEmail(
+            // Gọi hàm gửi email - không cần await vì không block response
+            sendEmail(
                 user.email,
                 'Mã xác minh Email của SmartTask AI',
-                message
-            );
+                emailContent
+            ).catch(err => {
+                console.error('Email send failed (non-critical):', err);
+            });
 
             // 5. Trả về thông báo thành công (kèm user.email để FE biết)
+            // QUAN TRỌNG: Trả về registeredEmail để FE biết email nào cần xác minh
             res.status(201).json({
                 message: `Đăng ký thành công. Vui lòng kiểm tra email: ${user.email} để nhận mã xác minh.`,
+                registeredEmail: user.email,
                 user: getCleanUser(user)
             });
 
@@ -157,8 +180,12 @@ exports.register = async (req, res, next) => {
             res.status(400).json({ message: 'Dữ liệu người dùng không hợp lệ.' });
         }
     } catch (error) {
-        console.error('Register Error:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi đăng ký.' });
+        console.error('Register Error:', error.message);
+        // Kiểm tra lỗi validation từ MongoDB
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Email này đã được đăng ký.' });
+        }
+        res.status(500).json({ message: 'Lỗi máy chủ khi đăng ký. ' + error.message });
     }
 };
 // @mota    Đăng nhập người dùng
