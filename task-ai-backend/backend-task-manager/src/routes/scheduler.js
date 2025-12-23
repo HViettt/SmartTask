@@ -110,7 +110,8 @@ router.get('/test-email', async (req, res) => {
                 hasCreds: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
                 host: process.env.EMAIL_HOST ? 'custom' : 'gmail-default',
                 port: process.env.EMAIL_PORT ? 'custom' : 'default',
-                secure: process.env.EMAIL_SECURE ? 'custom' : 'default'
+                secure: process.env.EMAIL_SECURE ? 'custom' : 'default',
+                provider: (process.env.EMAIL_PROVIDER || process.env.EMAIL_HTTP_PROVIDER || 'smtp').toLowerCase()
             }
         });
     } catch (err) {
