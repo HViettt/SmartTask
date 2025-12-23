@@ -5,6 +5,59 @@
  */
 const nodemailer = require('nodemailer');
 
+// HTTP provider senders (Resend, SendGrid) using native fetch in Node >=18
+const sendViaResend = async (to, subject, htmlContent) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { success: false, messageId: null, error: 'RESEND_API_KEY not set' };
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to, subject, html: htmlContent }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return { success: false, messageId: null, error: data?.message || `HTTP ${resp.status}` };
+    }
+    return { success: true, messageId: data?.id || null, error: null };
+  } catch (err) {
+    return { success: false, messageId: null, error: err?.message || String(err) };
+  }
+};
+
+const sendViaSendGrid = async (to, subject, htmlContent) => {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) return { success: false, messageId: null, error: 'SENDGRID_API_KEY not set' };
+  const fromEmail = (process.env.EMAIL_FROM || process.env.EMAIL_USER || '').replace(/^.*<|>$/g, '') || process.env.EMAIL_USER;
+  try {
+    const payload = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: fromEmail },
+      subject,
+      content: [{ type: 'text/html', value: htmlContent }],
+    };
+    const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (resp.status === 202) {
+      return { success: true, messageId: null, error: null };
+    }
+    const body = await resp.text();
+    return { success: false, messageId: null, error: `HTTP ${resp.status}: ${body}` };
+  } catch (err) {
+    return { success: false, messageId: null, error: err?.message || String(err) };
+  }
+};
+
 /** Cached transport instance for connection reuse and pooling */
 let cachedTransporter = null;
 
@@ -80,6 +133,16 @@ const getTransporter = () => {
 const sendEmail = async (to, subject, htmlContent) => {
   const isProd = process.env.NODE_ENV === 'production';
   const hasCreds = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const httpProvider = (process.env.EMAIL_PROVIDER || process.env.EMAIL_HTTP_PROVIDER || '').toLowerCase();
+
+  // Prefer HTTP providers when configured (bypasses SMTP port blocks)
+  if (httpProvider === 'resend') {
+    return await sendViaResend(to, subject, htmlContent);
+  }
+  if (httpProvider === 'sendgrid') {
+    return await sendViaSendGrid(to, subject, htmlContent);
+  }
+
   if (!hasCreds) {
     const msg = 'EMAIL disabled: EMAIL_USER/PASS not set';
     if (isProd) {
