@@ -4,6 +4,7 @@ const { protect } = require('../middlewares/authMiddleware');
 const { processDeadlineNotifications, runImmediately } = require('../utils/taskScheduler');
 const { sendEmail } = require('../utils/email');
 const net = require('net');
+const nodemailer = require('nodemailer');
 
 /**
  * @route   POST /api/scheduler/test
@@ -64,8 +65,9 @@ router.get('/test-email', async (req, res) => {
 
         // Optional TCP probe to quickly check network reachability
         if (req.query.probe === 'true') {
-            const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
-            const port = Number(process.env.EMAIL_PORT || (process.env.EMAIL_HOST ? 587 : 465));
+            const host = req.query.host || process.env.EMAIL_HOST || 'smtp.gmail.com';
+            const port = Number(req.query.port || process.env.EMAIL_PORT || (process.env.EMAIL_HOST ? 587 : 465));
+            const timeoutMs = Number(req.query.timeoutMs || 7000);
             const started = Date.now();
             const socket = new net.Socket();
             let settled = false;
@@ -75,7 +77,7 @@ router.get('/test-email', async (req, res) => {
                 try { socket.destroy(); } catch (e) {}
                 res.json(payload);
             };
-            socket.setTimeout(7000);
+            socket.setTimeout(timeoutMs);
             socket.once('connect', () => {
                 done({ success: true, probe: { host, port, latencyMs: Date.now() - started } });
             });
@@ -111,6 +113,46 @@ router.get('/test-email', async (req, res) => {
                 secure: process.env.EMAIL_SECURE ? 'custom' : 'default'
             }
         });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Internal error', error: err.message });
+    }
+});
+
+/**
+ * Verify SMTP connectivity and auth via Nodemailer without sending an email.
+ * GET /api/scheduler/verify-smtp?token=...&host=smtp.gmail.com&port=587&secure=false
+ */
+router.get('/verify-smtp', async (req, res) => {
+    try {
+        const { token } = req.query || {};
+        if (!process.env.ADMIN_TEST_TOKEN) {
+            return res.status(403).json({ success: false, message: 'ADMIN_TEST_TOKEN not configured' });
+        }
+        if (!token || token !== process.env.ADMIN_TEST_TOKEN) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+
+        const host = req.query.host || process.env.EMAIL_HOST || 'smtp.gmail.com';
+        const port = Number(req.query.port || process.env.EMAIL_PORT || 465);
+        const secure = (req.query.secure ?? process.env.EMAIL_SECURE ?? 'true') === 'true';
+        const transporter = nodemailer.createTransport({
+            host,
+            port,
+            secure,
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+            connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT || 20000),
+            socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT || 20000),
+            greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT || 10000),
+            logger: process.env.EMAIL_DEBUG === 'true',
+            debug: process.env.EMAIL_DEBUG === 'true',
+        });
+
+        try {
+            const ok = await transporter.verify();
+            return res.json({ success: ok === true, meta: { host, port, secure } });
+        } catch (err) {
+            return res.json({ success: false, error: err?.message || String(err), meta: { host, port, secure } });
+        }
     } catch (err) {
         return res.status(500).json({ success: false, message: 'Internal error', error: err.message });
     }
