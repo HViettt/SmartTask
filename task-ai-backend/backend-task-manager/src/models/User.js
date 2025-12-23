@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   hasPassword: { type: Boolean, default: false },
   isVerified: { type: Boolean, default: false },
   verificationToken: { type: String },
+    verificationLastSentAt: { type: Date },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
     // Mã OTP đặt lại mật khẩu (độc lập với verificationToken dùng đăng ký)

@@ -37,7 +37,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); 
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { sendEmail } = require('../utils/email');
 const { OAuth2Client } = require('google-auth-library');
 
 // Khởi tạo client Google OAuth từ biến môi trường
@@ -71,43 +71,21 @@ const getCleanUser = (user) => {
     };
 };
 
-// Email Transporter (SMTP Gmail)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// Tiện ích: Gửi email hoặc log mô phỏng nếu cấu hình sai
-const sendEmail = async (to, subject, htmlContent) => {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn('===========================================================');
-        console.warn('⚠️ EMAIL WARNING: EMAIL_USER or EMAIL_PASS not set in .env.');
-        console.warn('📧 [DEV EMAIL SIMULATION]');
-        console.log(`To: ${to}`);
-        console.log(`Subject: ${subject}`);
-        console.log(`Content: ${htmlContent.replace(/<[^>]*>/g, '').substring(0, 300)}...`);
-        console.warn('===========================================================');
-        return true; // Thành công trong dev mode
-    }
-    
-    try {
-        await transporter.sendMail({
-            from: `"SmartTask AI" <${process.env.EMAIL_USER}>`,
-            to,
-            subject,
-            html: htmlContent, // Sử dụng html thay vì text
-        });
-        console.log(`✅ Email sent to ${to}`);
-        return true;
-    } catch (error) {
-        console.error('❌ Error sending email:', error.message);
-        // Không throw error - hãy ghi log nhưng cho phép đăng ký tiếp tục
-        console.warn(`⚠️ Email gửi thất bại, nhưng cho phép tiếp tục đăng ký`);
-        return false;
-    }
+// Gửi email (dùng util chung)
+const sendVerificationEmail = async (to, name, code) => {
+    const emailContent = `
+                <html>
+                    <body>
+                        <h2>Chào mừng ${name},</h2>
+                        <p>Mã xác minh email của bạn là:</p>
+                        <h1 style="color: #10b981; font-family: monospace; letter-spacing: 2px;">${code}</h1>
+                        <p>Vui lòng nhập mã này vào trang web để hoàn tất đăng ký.</p>
+                        <p><strong>Mã sẽ hết hạn sau 15 phút.</strong></p>
+                        <p>SmartTask AI Team</p>
+                    </body>
+                </html>
+            `;
+    return await sendEmail(to, 'Mã xác minh Email của SmartTask AI', emailContent);
 };
 
 // @mota    Đăng ký tài khoản mới
@@ -125,6 +103,18 @@ exports.register = async (req, res, next) => {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
+        if (!userExists.isVerified) {
+            // Tài khoản tồn tại nhưng chưa xác minh → gửi lại mã và trả thông báo hướng dẫn
+            const code = userExists.getVerificationCode();
+            userExists.verificationLastSentAt = new Date();
+            await userExists.save();
+            await sendVerificationEmail(userExists.email, userExists.name, code);
+            return res.status(200).json({
+                message: `Email đã tồn tại nhưng chưa xác minh. Đã gửi lại mã tới: ${userExists.email}.`,
+                registeredEmail: userExists.email,
+                user: getCleanUser(userExists)
+            });
+        }
         return res.status(400).json({ message: 'Người dùng đã tồn tại.' });
     }
 
@@ -146,25 +136,12 @@ exports.register = async (req, res, next) => {
 
             // 4. Gửi Email (Gửi Code thay vì URL)
             // Thay vì tạo URL, gửi CODE
-            const emailContent = `
-                <html>
-                    <body>
-                        <h2>Chào mừng ${user.name},</h2>
-                        <p>Mã xác minh email của bạn là:</p>
-                        <h1 style="color: #10b981; font-family: monospace; letter-spacing: 2px;">${verificationCode}</h1>
-                        <p>Vui lòng nhập mã này vào trang web để hoàn tất đăng ký.</p>
-                        <p><strong>Mã sẽ hết hạn sau 15 phút.</strong></p>
-                        <p>SmartTask AI Team</p>
-                    </body>
-                </html>
-            `;
-
-            // Gọi hàm gửi email - không cần await vì không block response
-            sendEmail(
-                user.email,
-                'Mã xác minh Email của SmartTask AI',
-                emailContent
-            ).catch(err => {
+            // Gửi email xác minh (không block response)
+            sendVerificationEmail(user.email, user.name, verificationCode).then((result) => {
+                if (!result.success) {
+                    console.warn('⚠️ Email gửi thất bại, nhưng cho phép tiếp tục đăng ký');
+                }
+            }).catch(err => {
                 console.error('Email send failed (non-critical):', err);
             });
 
@@ -263,6 +240,48 @@ exports.verifyEmail = async (req, res, next) => {
     } catch (error) {
         console.error('Verify Email Error:', error);
         res.status(500).json({ message: 'Lỗi máy chủ khi xác minh email.' });
+    }
+};
+// @mota    GỬI LẠI MÃ XÁC MINH EMAIL (RESEND OTP)
+// @route   POST /api/auth/resend-verification
+// @access  Public
+exports.resendVerification = async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: 'Thiếu email.' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng.' });
+        }
+        if (user.isVerified) {
+            return res.status(400).json({ message: 'Tài khoản đã được xác minh.' });
+        }
+
+        // Throttle: 60s giữa các lần gửi
+        const now = Date.now();
+        const lastSent = user.verificationLastSentAt ? new Date(user.verificationLastSentAt).getTime() : 0;
+        if (lastSent && now - lastSent < 60 * 1000) {
+            const waitSec = Math.ceil((60 * 1000 - (now - lastSent)) / 1000);
+            return res.status(429).json({ message: `Vui lòng thử lại sau ${waitSec}s.` });
+        }
+
+        // Tạo mã mới và gửi
+        const code = user.getVerificationCode();
+        user.verificationLastSentAt = new Date();
+        await user.save();
+
+        const result = await sendVerificationEmail(user.email, user.name, code);
+        if (!result.success) {
+            return res.status(500).json({ message: 'Không thể gửi email xác minh. Vui lòng thử lại sau.' });
+        }
+
+        return res.json({ message: 'Đã gửi lại mã xác minh. Vui lòng kiểm tra email.' });
+    } catch (error) {
+        console.error('Resend Verification Error:', error?.message || error);
+        return res.status(500).json({ message: 'Lỗi máy chủ khi gửi lại mã xác minh.' });
     }
 };
 // @mota    QUÊN MẬT KHẨU - GỬI MÃ XÁC MINH (OTP)

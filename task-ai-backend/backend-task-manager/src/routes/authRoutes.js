@@ -7,6 +7,8 @@ const { validateRegister, validateLogin, validateVerifyEmail } = require('../mid
 router.post('/register', validateRegister, authController.register);
 router.post('/login', validateLogin, authController.login);
 router.post('/verify-email', validateVerifyEmail, authController.verifyEmail);
+// Gửi lại mã xác minh
+router.post('/resend-verification', authController.resendVerification);
 router.post('/forgot-password', authController.forgotPassword);
 // Đặt lại mật khẩu bằng mã OTP (email + code + password)
 router.put('/reset-password', authController.resetPasswordByCode); 

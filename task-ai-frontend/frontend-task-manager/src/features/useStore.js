@@ -187,6 +187,34 @@ export const useAuthStore = create((set, get) => ({
         }
     },
 
+    // GỬI LẠI MÃ XÁC MINH EMAIL
+    resendVerification: async (email) => {
+        set({ isLoading: true, error: null });
+        try {
+            const res = await api.post('/auth/resend-verification', { email });
+            set({ isLoading: false });
+            return res.data;
+        } catch (error) {
+            const errorMessage = error.response?.data?.message || 'Gửi lại mã thất bại.';
+            set({ error: errorMessage, isLoading: false });
+            throw error;
+        }
+    },
+
+    // GỬI LẠI MÃ XÁC MINH EMAIL
+    resendVerification: async (email) => {
+        set({ isLoading: true, error: null });
+        try {
+            const res = await api.post('/auth/resend-verification', { email });
+            set({ isLoading: false });
+            return res.data;
+        } catch (error) {
+            const errorMessage = error.response?.data?.message || 'Không thể gửi lại mã xác minh.';
+            set({ error: errorMessage, isLoading: false });
+            throw error;
+        }
+    },
+
     
 
     // ĐĂNG NHẬP THƯỜNG

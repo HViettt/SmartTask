@@ -6,3 +6,18 @@ node_modules/
 # OS / IDE
 .vscode/
 .DS_Store
+# Documentation (exclude markdown and diagram files)
+*.md
+!README.md
+!package.json
+*.mmd
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/

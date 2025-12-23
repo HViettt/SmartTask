@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../features/useStore";
+import { showToast } from "../../utils/toastUtils";
 import { 
     Loader2, 
     AlertCircle, 
@@ -13,7 +14,7 @@ import {
 import { useI18n } from "../../utils/i18n";
 
 export const VerifyEmailPage = () => {
-    const { verifyEmail, isLoading, error, clearError } = useAuthStore();
+    const { verifyEmail, resendVerification, isLoading, error, clearError } = useAuthStore();
     const navigate = useNavigate();
     const { t } = useI18n();
     
@@ -134,7 +135,16 @@ export const VerifyEmailPage = () => {
                             </form>
 
                             <button
-                                onClick={() => { /* TODO: Thêm logic gửi lại mã tại đây */ }}
+                                onClick={async () => {
+                                    if (!userEmail) return;
+                                    try {
+                                        const res = await resendVerification(userEmail);
+                                        showToast.success(res?.message || 'Đã gửi lại mã xác minh.');
+                                    } catch (e) {
+                                        const msg = e?.response?.data?.message || 'Gửi lại mã thất bại.';
+                                        showToast.error(msg);
+                                    }
+                                }}
                                 className="mt-6 w-full text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors font-medium py-2"
                                 disabled={isLoading}
                             >

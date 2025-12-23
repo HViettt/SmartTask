@@ -9,37 +9,16 @@ const Task = require('../models/Task');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const EmailDigestLog = require('../models/EmailDigestLog');
+const { sendEmail } = require('./email');
 const { isTaskOverdue, getDeadlineStatus, formatDeadline, VN_TIMEZONE } = require('./deadlineHelper');
 const { NOTIFICATION_TYPES, ACTIVE_TASK_STATUSES } = require('../common/constants');
 const { buildDeadlineBucketsByTasks, getAllUsersDeadlineBuckets, getUserDeadlineBuckets, mapTaskSummary } = require('../services/deadlineService');
 
-const sendEmail = async (to, subject, htmlContent) => {
-    const nodemailer = require('nodemailer');
-    
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        return { success: true, messageId: 'dev-mode-' + Date.now(), error: null };
-    }
-    
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-        },
-    });
-    
-    try {
-        const info = await transporter.sendMail({
-            from: `"SmartTask AI" <${process.env.EMAIL_USER}>`,
-            to,
-            subject,
-            html: htmlContent,
-        });
-        return { success: true, messageId: info.messageId, error: null };
-    } catch (error) {
-        return { success: false, messageId: null, error: error.message };
-    }
-};
+/**
+ * Format date to Vietnamese locale with timezone awareness.
+ * @param {Date} date - Date to format
+ * @returns {string} Formatted date string
+ */
 const formatDate = (date) => {
     const options = { 
         year: 'numeric', 
@@ -53,7 +32,11 @@ const formatDate = (date) => {
 };
 
 /**
- * Tạo HTML email với danh sách công việc
+ * Create HTML email with task summary and deadline warnings.
+ * @param {string} userName - User's full name
+ * @param {Array} upcomingTasks - Tasks due within 48 hours
+ * @param {Array} overdueTasks - Overdue tasks
+ * @returns {string} HTML email content
  */
 const createEmailHTML = (userName, upcomingTasks, overdueTasks) => {
     const upcomingHTML = upcomingTasks.length > 0 ? `
@@ -341,8 +324,11 @@ const processDeadlineNotifications = async () => {
                 await refreshUserDeadlineNotifications(userId, bucket);
 
                 const user = await User.findById(userId);
-                
-                if (!user || !user.email) continue;
+                if (!user || !user.email) {
+                    emailsSkipped++;
+                    console.log(`⏭️  [Email Digest] Skip user ${userId}: missing user or email`);
+                    continue;
+                }
                 
                 if (user.notificationSettings && user.notificationSettings.emailNotifications === false) {
                     emailsSkipped++;
@@ -362,6 +348,11 @@ const processDeadlineNotifications = async () => {
                 
                 const { upcoming, overdue } = bucket;
                 const totalTasks = upcoming.length + overdue.length;
+                // Skip sending empty digests
+                if (totalTasks === 0) {
+                    emailsSkipped++;
+                    continue;
+                }
                 
                 const emailHTML = createEmailHTML(user.name, upcoming, overdue);
                 const subject = `🔔 Thông báo: ${totalTasks} công việc cần chú ý`;
