@@ -71,8 +71,15 @@ const getTransporter = () => {
  * @returns {Promise<object>} { success, messageId, error }
  */
 const sendEmail = async (to, subject, htmlContent) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn('⚠️ EMAIL disabled: EMAIL_USER/PASS not set. Simulating send.');
+  const isProd = process.env.NODE_ENV === 'production';
+  const hasCreds = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  if (!hasCreds) {
+    const msg = 'EMAIL disabled: EMAIL_USER/PASS not set';
+    if (isProd) {
+      console.error('❌', msg, '- configure SMTP env vars on server');
+      return { success: false, messageId: null, error: msg };
+    }
+    console.warn('⚠️', msg, '- simulating in development');
     return { success: true, messageId: 'dev-simulated-' + Date.now(), error: null };
   }
 
