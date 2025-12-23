@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect } = require('../middlewares/authMiddleware');
 const { processDeadlineNotifications, runImmediately } = require('../utils/taskScheduler');
 const { sendEmail } = require('../utils/email');
+const net = require('net');
 
 /**
  * @route   POST /api/scheduler/test
@@ -59,6 +60,37 @@ router.get('/test-email', async (req, res) => {
         }
         if (!token || token !== process.env.ADMIN_TEST_TOKEN) {
             return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+
+        // Optional TCP probe to quickly check network reachability
+        if (req.query.probe === 'true') {
+            const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
+            const port = Number(process.env.EMAIL_PORT || (process.env.EMAIL_HOST ? 587 : 465));
+            const started = Date.now();
+            const socket = new net.Socket();
+            let settled = false;
+            const done = (payload) => {
+                if (settled) return;
+                settled = true;
+                try { socket.destroy(); } catch (e) {}
+                res.json(payload);
+            };
+            socket.setTimeout(7000);
+            socket.once('connect', () => {
+                done({ success: true, probe: { host, port, latencyMs: Date.now() - started } });
+            });
+            socket.once('timeout', () => {
+                done({ success: false, error: 'TCP timeout', probe: { host, port, latencyMs: Date.now() - started } });
+            });
+            socket.once('error', (err) => {
+                done({ success: false, error: err?.message || String(err), code: err?.code || null, probe: { host, port, latencyMs: Date.now() - started } });
+            });
+            try {
+                socket.connect(port, host);
+            } catch (err) {
+                done({ success: false, error: err?.message || String(err), code: err?.code || null });
+            }
+            return; // early return; response handled in probe callbacks
         }
 
         const target = to || process.env.EMAIL_USER;

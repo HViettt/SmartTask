@@ -33,11 +33,18 @@ const buildTransporter = () => {
     auth,
     pool: true,
     maxConnections: 3,
-    connectionTimeout: 15_000, // ms
-    socketTimeout: 15_000, // ms
+    connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT || 20_000), // ms
+    socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT || 20_000), // ms
+    greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT || 10_000), // ms
+    requireTLS: process.env.EMAIL_REQUIRE_TLS === 'true' || false,
+    ignoreTLS: process.env.EMAIL_IGNORE_TLS === 'true' || false,
+    logger: process.env.EMAIL_DEBUG === 'true',
+    debug: process.env.EMAIL_DEBUG === 'true',
     tls: {
       // Keep defaults; allow overriding if needed via env later
       // ciphers: 'TLSv1.2',
+      // Allow overriding strictness if needed (NOT recommended in production)
+      rejectUnauthorized: process.env.EMAIL_TLS_REJECT_UNAUTHORIZED === 'false' ? false : true,
     },
   };
 
