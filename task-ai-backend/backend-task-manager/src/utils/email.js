@@ -146,10 +146,9 @@ const sendEmail = async (to, subject, htmlContent) => {
   if (!hasCreds) {
     const msg = 'EMAIL disabled: EMAIL_USER/PASS not set';
     if (isProd) {
-      console.error('❌', msg, '- configure SMTP env vars on server');
       return { success: false, messageId: null, error: msg };
     }
-    console.warn('⚠️', msg, '- simulating in development');
+    console.warn(msg, '- simulating in development');
     return { success: true, messageId: 'dev-simulated-' + Date.now(), error: null };
   }
 
@@ -163,7 +162,7 @@ const sendEmail = async (to, subject, htmlContent) => {
     });
     return { success: true, messageId: info.messageId, error: null };
   } catch (error) {
-    console.error('❌ Email send error:', error?.message || error);
+    console.error('Email send error:', error?.message || error);
     return { success: false, messageId: null, error: error?.message || String(error) };
   }
 };

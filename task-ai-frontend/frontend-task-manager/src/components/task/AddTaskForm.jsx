@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Edit, Plus, StickyNote, ArrowRight, Loader2, Save, Sparkles } from 'lucide-react';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
+import { AITaskInput } from './AITaskInput';
 
 export const AddTaskForm = ({ 
   isOpen, 
@@ -41,14 +42,57 @@ export const AddTaskForm = ({
     onSubmit(e);
   };
 
+  // Handle AI parsed data
+  const handleAIParsed = (parsedData) => {
+    
+    // Parse deadline ISO string (UTC) into Vietnam local date and time
+    let deadlineDate = formData.deadline;
+    let deadlineTime = formData.deadlineTime || '23:59';
+    
+    if (parsedData.deadline) {
+      try {
+        const date = new Date(parsedData.deadline);
+        
+        // ⚠️ FIX: Convert UTC to Vietnam timezone (UTC+7) using local time
+        // Backend stores in UTC, but form needs local Vietnam time
+        const vnOffset = 7 * 60; // Vietnam is UTC+7
+        const localDate = new Date(date.getTime() + vnOffset * 60 * 1000);
+        
+        // Extract YYYY-MM-DD from local time
+        const year = localDate.getUTCFullYear();
+        const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(localDate.getUTCDate()).padStart(2, '0');
+        deadlineDate = `${year}-${month}-${day}`;
+        
+        // Extract HH:mm from local time
+        const hours = String(localDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(localDate.getUTCMinutes()).padStart(2, '0');
+        deadlineTime = `${hours}:${minutes}`;
+      } catch (err) {
+        // Error parsing deadline, use defaults
+      }
+    }
+    
+    setFormData({
+      ...formData,
+      title: parsedData.title || formData.title,
+      description: parsedData.description || formData.description,
+      deadline: deadlineDate,
+      deadlineTime: deadlineTime,
+      priority: parsedData.priority || formData.priority,
+      complexity: parsedData.complexity || formData.complexity,
+      notes: parsedData.notes || formData.notes,
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div 
         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity" 
         onClick={onClose} 
       />
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+      <div className="relative w-full max-w-lg max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-gray-200 dark:border-gray-700 flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
             {editingTask ? (
               <Edit size={20} className="text-blue-600" />
@@ -65,7 +109,14 @@ export const AddTaskForm = ({
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+          {/* ✨ NEW: AI Task Input - Only show when creating new task */}
+          {!editingTask && (
+            <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
+              <AITaskInput onParsed={handleAIParsed} />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
               {t('tasks.form.title')} <span className="text-red-500">*</span>

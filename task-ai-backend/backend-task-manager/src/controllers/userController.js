@@ -174,14 +174,9 @@ exports.updateProfile = async (req, res) => {
             const cloudinaryUrl = await uploadBase64Image(avatar, 'avatars');
             updates.avatar = cloudinaryUrl;
           } else {
-            // Lưu trực tiếp base64 nếu không có Cloudinary (dev mode)
-            console.log('⚠️ Cloudinary not configured - saving base64 directly');
             updates.avatar = avatar;
           }
         } catch (uploadError) {
-          console.error('Avatar upload failed:', uploadError);
-          // Fallback: lưu base64 nếu upload thất bại
-          console.log('⚠️ Upload failed - saving base64 as fallback');
           updates.avatar = avatar;
         }
       } else {

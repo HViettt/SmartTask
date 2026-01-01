@@ -17,8 +17,10 @@
  */
 
 const Task = require('../models/Task');
+const moment = require('moment-timezone');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const aiService = require('../utils/aiService');
+const { resolveVietnameseDate } = require('../utils/dateResolver');
 const { getDeadlineStatus, isValidDeadlineTime, isTaskOverdue } = require('../utils/deadlineHelper');
 const { refreshUserDeadlineNotifications } = require('../utils/taskScheduler');
 
@@ -107,8 +109,26 @@ exports.createTask = async (req, res) => {
       });
     }
 
+    // ⚠️ FIX: Combine deadline (YYYY-MM-DD) + deadlineTime (HH:mm) → ISO UTC datetime
+    const deadlineDate = req.body.deadline;  // e.g. "2025-01-05"
+    const deadlineTime = req.body.deadlineTime || '23:59';
+
+    let finalDeadlineUTC;
+    try {
+      // Parse ngày + giờ theo timezone Việt Nam
+      const vietnamMoment = moment.tz(`${deadlineDate} ${deadlineTime}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh');
+      
+      finalDeadlineUTC = vietnamMoment.utc().toDate();
+    } catch (parseError) {
+      return res.status(400).json({
+        success: false,
+        code: 'DEADLINE_PARSE_ERROR',
+        message: 'Không thể xử lý thời gian deadline. Vui lòng kiểm tra lại format.'
+      });
+    }
+
     const normalizedTitle = normalizeTitle(req.body.title);
-    const { start, end } = getDayRange(req.body.deadline);
+    const { start, end } = getDayRange(finalDeadlineUTC);
 
     // Kiểm tra trùng tiêu đề trong cùng ngày với cùng user
     if (start && end) {
@@ -136,15 +156,15 @@ exports.createTask = async (req, res) => {
       ...req.body,
       userId: req.user._id,
       normalizedTitle,
-      deadlineTime: req.body.deadlineTime || '23:59'
+      deadline: finalDeadlineUTC,  // ✅ Store UTC datetime
+      deadlineTime: deadlineTime
     });
     const savedTask = await newTask.save();
     
-    // 🔔 Cập nhật 2 thông báo deadline (DUE_SOON, OVERDUE) ngay khi tạo task mới
     try {
       await refreshUserDeadlineNotifications(req.user._id);
     } catch (notifyErr) {
-      console.warn('⚠️ Lỗi cập nhật thông báo deadline:', notifyErr.message);
+      // Silent fail - not critical
     }
 
     // Add computed status to response
@@ -193,6 +213,28 @@ exports.updateTask = async (req, res) => {
 
     const { status } = req.body;
     let updates = { ...req.body };
+
+    // ⚠️ FIX: If deadline or deadlineTime changed, combine and convert to UTC
+    if (updates.deadline || updates.deadlineTime) {
+      const deadlineDate = updates.deadline 
+        ? updates.deadline.split('T')[0]  // Extract YYYY-MM-DD if ISO string
+        : currentTask.deadline.toISOString().split('T')[0];  // Use current date
+      const deadlineTime = updates.deadlineTime || currentTask.deadlineTime || '23:59';
+      
+      try {
+        const vietnamMoment = moment.tz(`${deadlineDate} ${deadlineTime}`, 'YYYY-MM-DD HH:mm', 'Asia/Ho_Chi_Minh');
+        const finalDeadlineUTC = vietnamMoment.utc().toDate();
+        
+        updates.deadline = finalDeadlineUTC;
+        updates.deadlineTime = deadlineTime;
+      } catch (parseError) {
+        return res.status(400).json({
+          success: false,
+          code: 'DEADLINE_PARSE_ERROR',
+          message: 'Không thể xử lý thời gian deadline. Vui lòng kiểm tra lại format.'
+        });
+      }
+    }
 
     // Chuẩn hóa tiêu đề nếu có thay đổi
     const nextNormalizedTitle = updates.title
@@ -247,11 +289,10 @@ exports.updateTask = async (req, res) => {
       { new: true }
     );
 
-    // 🔔 Mỗi lần cập nhật task, tính lại 2 thông báo deadline (DUE_SOON, OVERDUE)
     try {
       await refreshUserDeadlineNotifications(req.user._id);
     } catch (notifyErr) {
-      console.warn('⚠️ Lỗi cập nhật thông báo deadline:', notifyErr.message);
+      // Silent fail - not critical
     }
 
     res.json({
@@ -334,9 +375,6 @@ exports.suggestTasks = async (req, res) => {
       });
     }
 
-    console.log('📋 Tìm thấy', tasks.length, 'công việc cho user', req.user._id);
-    
-    // 🤖 Sử dụng AI Service (thử Groq > Gemini > Fallback)
     const result = await aiService.getSuggestedOrder(tasks);
     return res.json({
       success: true,
@@ -345,11 +383,123 @@ exports.suggestTasks = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Lỗi AI Suggest:', error.message);
+    console.error('Error in AI suggest:', error.message);
     return res.status(500).json({ 
       success: false,
       message: 'Lỗi khi gợi ý công việc: ' + error.message,
       ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
+  }
+};
+
+/**
+ * ============================================================================
+ * 📌 POST /api/tasks/ai-parse
+ * ============================================================================
+ * Phân tích ngôn ngữ tự nhiên thành dữ liệu task
+ * 
+ * Body: { text: "Tuần sau nộp báo cáo AI, thứ sáu họp nhóm, ưu tiên cao" }
+ * 
+ * Response: {
+ *   success: true,
+ *   data: {
+ *     title: "...",
+ *     description: "...",
+ *     deadline: "YYYY-MM-DD",
+ *     priority: "High|Medium|Low",
+ *     complexity: "Easy|Medium|Hard",
+ *     aiProvider: "Groq AI" | "Google Gemini"
+ *   }
+ * }
+ * 
+ * Flow:
+ * 1. User gửi text mô tả công việc
+ * 2. AI parse thành structured data
+ * 3. Trả về để user xác nhận (KHÔNG TỰ ĐỘNG LƯU)
+ * 4. Frontend sẽ hiện form với dữ liệu đã parse để user điều chỉnh
+ * 5. User nhấn "Lưu" → gọi POST /api/tasks (endpoint tạo task thông thường)
+ * 
+ * Authentication: Required (JWT protect middleware)
+ * Rate Limiting: Nên áp dụng để tránh spam API
+ * ============================================================================
+ */
+exports.parseTaskText = async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    // Validate input
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_INPUT',
+        message: 'Vui lòng nhập mô tả công việc'
+      });
+    }
+    
+    if (text.length > 500) {
+      return res.status(400).json({
+        success: false,
+        code: 'TEXT_TOO_LONG',
+        message: 'Mô tả công việc quá dài (tối đa 500 ký tự)'
+      });
+    }
+    
+    const aiOutput = await aiService.parseTaskFromText(text);
+    
+    if (!aiOutput.title || !aiOutput.priority || !aiOutput.complexity) {
+      return res.status(500).json({
+        success: false,
+        code: 'AI_PARSE_INCOMPLETE',
+        message: 'AI không thể trích xuất đầy đủ thông tin. Vui lòng nhập thủ công.'
+      });
+    }
+    
+    let deadline;
+    try {
+      deadline = resolveVietnameseDate(aiOutput.dateText || '', aiOutput.timeText || '');
+    } catch (dateError) {
+      deadline = resolveVietnameseDate('hôm nay', '23:59');
+    }
+    
+    // Step 3: Validate enum values
+    const validPriorities = ['High', 'Medium', 'Low'];
+    const validComplexities = ['Easy', 'Medium', 'Hard'];
+    
+    if (!validPriorities.includes(aiOutput.priority)) {
+      aiOutput.priority = 'Medium';
+    }
+    
+    if (!validComplexities.includes(aiOutput.complexity)) {
+      aiOutput.complexity = 'Medium';
+    }
+    
+    // Step 4: Return parsed data with resolved deadline
+    const result = {
+      title: aiOutput.title,
+      description: aiOutput.description || '',
+      dateText: aiOutput.dateText || '', // Keep for reference
+      timeText: aiOutput.timeText || '', // Keep for reference
+      deadline: deadline, // ← RESOLVED ISO datetime
+      priority: aiOutput.priority,
+      complexity: aiOutput.complexity,
+      aiProvider: aiOutput.aiProvider || 'Unknown'
+    };
+    
+    return res.json({
+      success: true,
+      data: result,
+      message: 'Phân tích thành công! Vui lòng xem lại và xác nhận trước khi lưu.'
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      code: 'AI_PARSE_ERROR',
+      message: 'Không thể phân tích công việc. Vui lòng thử lại hoặc nhập thủ công.',
+      ...(process.env.NODE_ENV === 'development' && { 
+        error: error.message,
+        stack: error.stack 
+      })
     });
   }
 };

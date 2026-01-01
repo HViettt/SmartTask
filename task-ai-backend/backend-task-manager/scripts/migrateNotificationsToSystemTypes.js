@@ -11,18 +11,13 @@ const { NOTIFICATION_TYPES } = require('../src/common/constants');
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ MongoDB Connected');
   } catch (error) {
-    console.error('❌ MongoDB Connection Error:', error.message);
+    console.error('MongoDB Connection Error:', error.message);
     process.exit(1);
   }
 };
 
 const migrate = async () => {
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🔧 MIGRATE NOTIFICATIONS -> EMAIL_SENT / DUE_SOON / OVERDUE');
-  console.log('═══════════════════════════════════════════════════\n');
-
   try {
     await connectDB();
 
@@ -53,17 +48,12 @@ const migrate = async () => {
 
     if (bulkOps.length > 0) {
       const res = await Notification.bulkWrite(bulkOps);
-      console.log(`✅ Đã cập nhật ${res.modifiedCount} bản ghi.`);
-    } else {
-      console.log('ℹ️ Không có bản ghi cần cập nhật.');
     }
 
-    console.log('\n✅ Migration completed.');
   } catch (error) {
-    console.error('\n❌ Migration failed:', error);
+    console.error('Migration failed:', error);
   } finally {
     await mongoose.connection.close();
-    console.log('\n🔒 Database connection closed');
     process.exit(0);
   }
 };

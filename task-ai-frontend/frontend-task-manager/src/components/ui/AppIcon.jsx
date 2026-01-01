@@ -194,7 +194,6 @@ export const AppIcon = ({
   const IconComponent = ICON_MAP[name];
 
   if (!IconComponent) {
-    console.warn(`Icon "${name}" not found in ICON_MAP`);
     return null;
   }
 

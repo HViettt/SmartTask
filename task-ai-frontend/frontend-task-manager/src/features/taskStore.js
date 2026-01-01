@@ -152,7 +152,7 @@ export const useTaskStore = create((set, get) => ({
   suggestTasks: async () => {
     try {
       const res = await api.post("/tasks/ai-suggest");
-      // ✅ Backend returns { success, data: { sortedIds, reasoning }, message }
+      // Backend returns { success, data: { sortedIds, reasoning }, message }
       return res.data.data || res.data;
     } catch (err) {
       throw new Error(err.response?.data?.message || "AI suggest failed");

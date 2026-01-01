@@ -180,9 +180,9 @@ export const Dashboard = () => {
 
   const statCards = useMemo(() => ([
     { key: 'total', title: t('dashboard.stats.total'), value: stats.total, icon: ListTodo, color: 'bg-indigo-500 text-indigo-500' },
-    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: AlertCircle, color: 'bg-red-500 text-red-500', subtext: t('dashboard.stats.sub.todo') }, // 🔴 CHƯA LÀM = ĐỎ
-    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Cog, color: 'bg-yellow-500 text-yellow-500', subtext: t('dashboard.stats.sub.doing') }, // 🟡 ĐANG LÀM = VÀNG
-    { key: 'done', title: t('dashboard.stats.done'), value: stats.done, icon: CheckCircle2, color: 'bg-green-500 text-green-500', subtext: t('dashboard.stats.sub.done', { percent: stats.completionRate }) }, // 🟢 HOÀN THÀNH = XANH LÁ
+    { key: 'todo', title: t('dashboard.stats.todo'), value: stats.todo, icon: AlertCircle, color: 'bg-red-500 text-red-500', subtext: t('dashboard.stats.sub.todo') },
+    { key: 'doing', title: t('dashboard.stats.doing'), value: stats.doing, icon: Cog, color: 'bg-yellow-500 text-yellow-500', subtext: t('dashboard.stats.sub.doing') },
+    { key: 'done', title: t('dashboard.stats.done'), value: stats.done, icon: CheckCircle2, color: 'bg-green-500 text-green-500', subtext: t('dashboard.stats.sub.done', { percent: stats.completionRate }) },
     { key: 'overdue', title: t('dashboard.stats.overdue'), value: stats.overdueTasks, icon: AlertTriangle, color: 'bg-red-600 text-red-600', subtext: t('dashboard.stats.sub.overdue') },
     { key: 'highPriority', title: t('dashboard.stats.highPriority'), value: stats.highPriority, icon: AlertCircle, color: 'bg-orange-500 text-orange-500', subtext: t('dashboard.stats.sub.highPriority') },
     { key: 'completedToday', title: t('dashboard.stats.completedToday'), value: stats.completedToday, icon: Trophy, color: 'bg-emerald-500 text-emerald-500', subtext: t('dashboard.stats.sub.completedToday') }

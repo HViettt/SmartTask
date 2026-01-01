@@ -8,6 +8,10 @@ router.route('/')
   .get(protect, taskController.getTasks)
   .post(protect, taskController.createTask);
 
+// ✨ NEW: AI parsing route - parse natural language to task data
+router.post('/ai-parse', protect, taskController.parseTaskText);
+
+// Existing AI suggest route
 router.post('/ai-suggest', protect, taskController.suggestTasks);
 
 router.route('/:id')

@@ -13,8 +13,6 @@ const nodemailer = require('nodemailer');
  */
 router.post('/test', protect, async (req, res) => {
     try {
-        console.log(`🧪 [Manual Test] User ${req.user.email} triggered scheduler test`);
-        
         await processDeadlineNotifications();
         
         res.json({
@@ -22,7 +20,7 @@ router.post('/test', protect, async (req, res) => {
             message: 'Scheduler test completed. Check console logs for details.'
         });
     } catch (error) {
-        console.error('❌ Error in scheduler test:', error);
+        console.error('Error in scheduler test:', error);
         res.status(500).json({
             success: false,
             message: 'Scheduler test failed',

@@ -34,7 +34,7 @@ const errorHandler = (err, req, res, next) => {
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   // Ghi nhật ký lỗi với thông tin chi tiết
-  console.error('❌ LỖI:', {
+  console.error('ERROR:', {
     timestamp: new Date().toISOString(),
     method: req.method,
     path: req.path,

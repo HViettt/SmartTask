@@ -11,18 +11,13 @@ const Task = require('../src/models/Task');
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ MongoDB Connected');
   } catch (error) {
-    console.error('❌ MongoDB Connection Error:', error.message);
+    console.error('MongoDB Connection Error:', error.message);
     process.exit(1);
   }
 };
 
 const seedTestData = async () => {
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🌱 SEED TEST USER + TASKS FOR DIGEST');
-  console.log('═══════════════════════════════════════════════════\n');
-
   try {
     await connectDB();
 
@@ -32,7 +27,6 @@ const seedTestData = async () => {
 
     let user = await User.findOne({ email: testEmail });
     if (!user) {
-      console.log('📝 Creating new test user...');
       user = await User.create({
         name: testName,
         email: testEmail,
@@ -46,10 +40,7 @@ const seedTestData = async () => {
           deadlineNotifications: true
         }
       });
-      console.log(`✅ Created user: ${user.email}\n`);
     } else {
-      console.log(`ℹ️  User already exists: ${user.email}\n`);
-      // Ensure notifications enabled
       if (!user.notificationSettings) {
         user.notificationSettings = {};
       }
@@ -57,7 +48,6 @@ const seedTestData = async () => {
       user.notificationSettings.deadlineNotifications = true;
       user.isVerified = true;
       await user.save();
-      console.log(`✅ Updated user settings\n`);
     }
 
     // 2. Create tasks
@@ -98,27 +88,13 @@ const seedTestData = async () => {
     await Task.deleteMany({ userId: user._id, title: /OVERDUE|DUE SOON/ });
 
     for (const taskData of tasks) {
-      const task = await Task.create(taskData);
-      const deadlineStr = new Date(taskData.deadline).toLocaleString('vi-VN');
-      console.log(`✅ Created task: "${task.title}"`);
-      console.log(`   Deadline: ${deadlineStr}\n`);
+      await Task.create(taskData);
     }
 
-    console.log('═══════════════════════════════════════════════════');
-    console.log('✅ SEED COMPLETE');
-    console.log('═══════════════════════════════════════════════════\n');
-    console.log('📋 Summary:');
-    console.log(`  User: ${user.email}`);
-    console.log(`  Tasks: 2 (1 overdue, 1 due soon)`);
-    console.log(`  Email Notifications: ${user.notificationSettings?.emailNotifications ? 'Enabled' : 'Disabled'}`);
-    console.log('\n📧 Run digest test to see "Sent: 1"');
-    console.log('   Command: node scripts/testScheduler.js\n');
-
   } catch (error) {
-    console.error('❌ Seed failed:', error?.message || error);
+    console.error('Seed failed:', error?.message || error);
   } finally {
     await mongoose.connection.close();
-    console.log('🔒 Database connection closed');
     process.exit(0);
   }
 };

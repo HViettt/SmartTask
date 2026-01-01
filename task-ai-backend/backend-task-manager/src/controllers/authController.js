@@ -138,11 +138,9 @@ exports.register = async (req, res, next) => {
             // Thay vì tạo URL, gửi CODE
             // Gửi email xác minh (không block response)
             sendVerificationEmail(user.email, user.name, verificationCode).then((result) => {
-                if (!result.success) {
-                    console.warn('⚠️ Email gửi thất bại, nhưng cho phép tiếp tục đăng ký');
-                }
+                // Email sent asynchronously
             }).catch(err => {
-                console.error('Email send failed (non-critical):', err);
+                // Email send failed (non-critical)
             });
 
             // 5. Trả về thông báo thành công (kèm user.email để FE biết)

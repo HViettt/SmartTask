@@ -32,7 +32,6 @@ export const LoginPage = () => {
   // Initialize Google Sign-In
   useEffect(() => {
     if (!isGoogleEnabled || !GOOGLE_CLIENT_ID) {
-      console.warn("Google Sign-In disabled or missing GOOGLE_CLIENT_ID");
       return;
     }
 

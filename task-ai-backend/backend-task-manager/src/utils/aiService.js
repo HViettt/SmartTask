@@ -63,8 +63,6 @@ Trả về JSON array với format:
 
 Chỉ trả về JSON, không thêm text nào.`;
 
-  console.log('🤖 Calling Groq API for task suggestions...');
-  
   const response = await groq.chat.completions.create({
     messages: [
       {
@@ -78,7 +76,6 @@ Chỉ trả về JSON, không thêm text nào.`;
   });
 
   const resultText = response.choices[0].message.content.trim();
-  console.log('📝 Groq response:', resultText.substring(0, 200));
   
   const suggestions = JSON.parse(resultText);
   
@@ -123,14 +120,11 @@ Danh sách task: ${tasksForPrompt}
 Trả về JSON array: [{"taskId": "...", "reasoning": "..."}]
 Chỉ JSON, không text thêm.`;
 
-  console.log('🤖 Calling Gemini API for task suggestions...');
-  
   const result = await model.generateContent({
     contents: [{ parts: [{ text: prompt }] }]
   });
 
   const resultText = result.response.text().trim();
-  console.log('📝 Gemini response:', resultText.substring(0, 200));
   
   const suggestions = JSON.parse(resultText);
   
@@ -145,8 +139,6 @@ Chỉ JSON, không text thêm.`;
  * Thuật toán sắp xếp dự phòng đơn giản
  */
 const suggestWithFallback = (tasks) => {
-  console.warn('⚠️ Using fallback sorting...');
-  
   const priorityMap = { 'High': 3, 'Medium': 2, 'Low': 1 };
   const complexityMap = { 'Easy': 1, 'Medium': 2, 'Hard': 3 };
   
@@ -176,7 +168,7 @@ const suggestWithFallback = (tasks) => {
   return sorted.map(t => ({
     taskId: t._id.toString(),
     reasoning: t.status === 'Overdue' 
-      ? `⚠️ QUAY HẠN! Hạn: ${t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : 'N/A'}`
+      ? `QUÁ HẠN! Hạn: ${t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : 'N/A'}`
       : `Deadline: ${t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : 'N/A'}, Priority: ${t.priority}`
   }));
 };
@@ -189,32 +181,29 @@ const getSuggestedOrder = async (tasks) => {
     return { sortedIds: [], reasoning: {} };
   }
   
-  // Thử 1: Groq (hiệu năng tốt, gói miễn phí cao)
+  // Thử 1: Groq 
   try {
     const suggestions = await suggestWithGroq(tasks);
-    console.log('✅ Used Groq AI');
     const result = processAISuggestions(tasks, suggestions);
     result.provider = 'groq'; // Thêm thông tin provider
     result.providerName = 'Groq AI';
     return result;
   } catch (groqError) {
-    console.warn('⚠️ Groq failed:', groqError.message);
+    // Try Gemini fallback
   }
   
   // Thử 2: Gemini (dự phòng)
   try {
     const suggestions = await suggestWithGemini(tasks);
-    console.log('✅ Used Gemini AI');
     const result = processAISuggestions(tasks, suggestions);
     result.provider = 'gemini'; // Thêm thông tin provider
     result.providerName = 'Google Gemini';
     return result;
   } catch (geminiError) {
-    console.warn('⚠️ Gemini failed:', geminiError.message);
+    // Use fallback
   }
   
   // Thử 3: Thuật toán dự phòng
-  console.log('✅ Using fallback sorting');
   const suggestions = suggestWithFallback(tasks);
   const result = processAISuggestions(tasks, suggestions);
   result.provider = 'fallback'; // Thêm thông tin provider
@@ -238,10 +227,202 @@ const processAISuggestions = (tasks, suggestions) => {
   return { sortedIds, reasoning };
 };
 
+/**
+ * ============================================================================
+ * PARSE NATURAL LANGUAGE TO TASK DATA
+ * ============================================================================
+ * Chuyển đổi câu mô tả công việc bằng ngôn ngữ tự nhiên thành dữ liệu task
+ * 
+ * Input: "Tuần sau nộp báo cáo AI, thứ sáu họp nhóm, ưu tiên cao"
+ * Output: {
+ *   title: "Nộp báo cáo AI",
+ *   description: "Họp nhóm vào thứ sáu",
+ *   deadline: "2026-01-10",
+ *   priority: "High",
+ *   complexity: "Medium"
+ * }
+ */
+
+/**
+ * Parse task bằng Groq AI (ưu tiên)
+ * 
+ * ⚠️ IMPORTANT: AI chỉ trích xuất semantic fields, KHÔNG tính toán deadline!
+ * - AI trả về: dateText (text thô), timeText (time thô)
+ * - Backend sẽ dùng resolveVietnameseDate() để tính deadline chính xác
+ */
+const parseTaskWithGroq = async (text) => {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  
+  if (!groqApiKey || groqApiKey.includes('placeholder')) {
+    throw new Error('Groq API key not configured');
+  }
+  
+  const groq = new Groq({ apiKey: groqApiKey });
+
+  const prompt = `Bạn là trợ lý AI phân tích công việc.
+
+Phân tích câu sau và trích xuất thông tin công việc:
+"${text}"
+
+Trả về JSON với format CHÍNH XÁC:
+{
+  "title": "tiêu đề ngắn gọn (tối đa 50 ký tự)",
+  "description": "mô tả chi tiết hơn (nếu có)",
+  "dateText": "biểu thức ngày bằng tiếng Việt (vd: 'Thứ 2 tuần sau', 'ngày mai', 'hôm nay')",
+  "timeText": "biểu thức giờ (vd: '09:00', '9 sáng', '3 chiều')",
+  "priority": "High|Medium|Low",
+  "complexity": "Easy|Medium|Hard",
+  "notes": "ghi chú thêm, URLs (nếu có)"
+}
+
+Quy tắc QUAN TRỌNG:
+1. Không tính toán ngày! Chỉ TRÍCH XUẤT text thô từ input
+2. **GIỮ NGUYÊN các trạng từ thời gian: "trước", "sau", "đến", "tới"**
+3. dateText ví dụ: 
+   - "trước Thứ 2 tuần sau" (GIỮ "trước")
+   - "đến Thứ 5" (GIỮ "đến")
+   - "Thứ 2 tuần sau"
+   - "ngày mai", "hôm nay", "tuần này"
+4. timeText ví dụ: "09:00", "9 sáng", "3 chiều", "11:59 tối"
+5. "ưu tiên cao/gấp/quan trọng" → High; "bình thường" → Medium; "thấp/không gấp" → Low
+6. "dễ/đơn giản" → Easy; "bình thường" → Medium; "khó/phức tạp" → Hard
+7. Nếu không rõ priority/complexity, mặc định: Medium
+8. Nếu không có time → timeText = "" (backend sẽ dùng 23:59)
+9. **QUAN TRỌNG**: Nếu có URLs (http://, https://, www.), phải đưa TOÀN BỘ vào notes
+10. Chỉ trả về JSON, không thêm text.
+
+Ví dụ input: "Thứ 2 tuần sau vào lúc 9 sáng họp nhóm, dự án AI, ưu tiên cao"
+Ví dụ output:
+{
+  "title": "Họp nhóm dự án AI",
+  "description": "Họp với nhóm",
+  "dateText": "Thứ 2 tuần sau",
+  "timeText": "9 sáng",
+  "priority": "High",
+  "complexity": "Medium",
+  "notes": ""
+}
+
+Ví dụ 2 input: "trước thứ 2 tuần sau hoàn thành báo cáo, https://example.com"
+Ví dụ 2 output:
+{
+  "title": "Hoàn thành báo cáo",
+  "description": "Hoàn thành báo cáo",
+  "dateText": "trước thứ 2 tuần sau",
+  "timeText": "",
+  "priority": "High",
+  "complexity": "Medium",
+  "notes": "https://example.com"
+}`;
+
+  const response = await groq.chat.completions.create({
+    messages: [{ role: 'user', content: prompt }],
+    model: 'llama-3.3-70b-versatile',
+    temperature: 0.3,
+    max_tokens: 512
+  });
+
+  const resultText = response.choices[0].message.content.trim();
+  
+  let cleanedText = resultText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(cleanedText);
+  
+  if (!parsed.title || !parsed.priority || !parsed.complexity) {
+    throw new Error('Invalid parsed task format from Groq');
+  }
+  
+  return parsed;
+};
+
+/**
+ * Parse task bằng Gemini AI (dự phòng)
+ * 
+ * ⚠️ IMPORTANT: AI chỉ trích xuất semantic fields, KHÔNG tính toán deadline!
+ */
+const parseTaskWithGemini = async (text) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+  
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+  const prompt = `Bạn là trợ lý AI phân tích công việc.
+
+Phân tích câu sau:
+"${text}"
+
+Trả về JSON:
+{
+  "title": "...",
+  "description": "...",
+  "dateText": "...",
+  "timeText": "...",
+  "priority": "High|Medium|Low",
+  "complexity": "Easy|Medium|Hard",
+  "notes": "URLs và ghi chú thêm (nếu có)"
+}
+
+Quy tắc:
+- dateText: "Thứ 2 tuần sau", "trước Thứ 2 tuần sau", "ngày mai", "hôm nay", etc (KHÔNG tính toán!)
+- **GIỮ NGUYÊN từ "trước", "sau", "đến" trong dateText**
+- timeText: "09:00", "9 sáng", "3 chiều", etc (KHÔNG tính toán!)
+- **notes**: Đưa TẤT CẢ URLs vào notes
+- Chỉ TRÍCH XUẤT từ text, không tính toán.
+- Chỉ JSON, không text thêm.`;
+
+  const result = await model.generateContent({
+    contents: [{ parts: [{ text: prompt }] }]
+  });
+
+  const resultText = result.response.text().trim();
+  
+  let cleanedText = resultText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(cleanedText);
+  
+  if (!parsed.title || !parsed.priority || !parsed.complexity) {
+    throw new Error('Invalid parsed task format from Gemini');
+  }
+  
+  return parsed;
+};
+
+/**
+ * Main parsing function với fallback
+ */
+const parseTaskFromText = async (text) => {
+  if (!text || text.trim().length === 0) {
+    throw new Error('Text input is empty');
+  }
+  
+  // Thử 1: Groq
+  try {
+    const result = await parseTaskWithGroq(text);
+    result.aiProvider = 'Groq AI';
+    return result;
+  } catch (groqError) {
+    // Try Gemini fallback
+  }
+  
+  // Thử 2: Gemini
+  try {
+    const result = await parseTaskWithGemini(text);
+    result.aiProvider = 'Google Gemini';
+    return result;
+  } catch (geminiError) {
+    throw new Error('AI parsing failed. Please try again or enter task details manually.');
+  }
+};
+
 module.exports = {
   suggestWithGroq,
   suggestWithGemini,
   suggestWithFallback,
   getSuggestedOrder,
-  processAISuggestions
+  processAISuggestions,
+  parseTaskFromText,
+  parseTaskWithGroq,
+  parseTaskWithGemini
 };
