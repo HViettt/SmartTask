@@ -4,6 +4,7 @@ import { useAuthStore } from '../features/useStore';
 import { showToast } from '../utils/toastUtils';
 
 export const useProfileLogic = () => {
+  const user = useAuthStore((state) => state.user);
   const updateUserInfo = useAuthStore((state) => state.updateUserInfo);
 
   // ===== PROFILE STATE =====
@@ -36,6 +37,23 @@ export const useProfileLogic = () => {
 
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isSettingPassword, setIsSettingPassword] = useState(false);
+
+  // ===== HYDRATE FROM STORE (avoids network when data có sẵn) =====
+  const hydrateFromUser = useCallback((source) => {
+    if (!source) return;
+
+    setProfileData((prev) => ({
+      ...prev,
+      name: source.name || '',
+      email: source.email || '',
+      avatar: source.avatar || '',
+      isGoogleUser: source.isGoogleUser || false,
+      hasPassword: source.hasPassword || false,
+      createdAt: source.createdAt || null,
+      isVerified: source.isVerified || false,
+    }));
+    setAvatarPreview(source.avatar || '');
+  }, []);
 
   // ===== AVATAR VALIDATION =====
   const validateAvatarFile = (file) => {
@@ -99,27 +117,23 @@ export const useProfileLogic = () => {
       return null;
     }
 
+    // Nếu store đã có user, ưu tiên dùng ngay để render nhanh
+    if (user) {
+      hydrateFromUser(user);
+      return user;
+    }
+
     try {
       const response = await api.get('/user/profile');
       const { data } = response.data;
 
-      setProfileData({
-        name: data.name || '',
-        email: data.email || '',
-        avatar: data.avatar || '',
-        isGoogleUser: data.isGoogleUser || false,
-        hasPassword: data.hasPassword || false,
-        createdAt: data.createdAt || null,
-        isVerified: data.isVerified || false,
-      });
-
-      setAvatarPreview(data.avatar || '');
+      hydrateFromUser(data);
       return data;
     } catch (error) {
       console.error('Fetch profile error:', error);
       throw error;
     }
-  }, []);
+  }, [hydrateFromUser, user]);
 
   // ===== HANDLE AVATAR CHANGE =====
   const handleAvatarChange = useCallback(async (e) => {
@@ -332,6 +346,7 @@ export const useProfileLogic = () => {
     isSettingPassword,
 
     // Methods
+    hydrateFromUser,
     fetchProfile,
     handleAvatarChange,
     handleUpdateProfile,

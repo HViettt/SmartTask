@@ -23,6 +23,7 @@
 import React, { useState, useEffect } from 'react';
 import { showToast } from '../utils/toastUtils';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../features/useStore';
 
 // Import component con
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -69,6 +70,7 @@ const ProfilePage = () => {
   // ===== STATE MANAGEMENT =====
   const navigate = useNavigate();
   const { t } = useI18n();
+  const user = useAuthStore((state) => state.user);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [activeSection, setActiveSection] = useState('info'); // 'info' or 'security'
 
@@ -84,6 +86,7 @@ const ProfilePage = () => {
     setPasswordData,
     setShowPasswords,
     fetchProfile,
+    hydrateFromUser,
     handleAvatarChange,
     handleUpdateProfile,
     handleChangePassword,
@@ -93,11 +96,26 @@ const ProfilePage = () => {
 
   // ===== LIFECYCLE =====
   useEffect(() => {
+    let cancelled = false;
     const loadProfile = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
           navigate('/login');
+          return;
+        }
+
+        // Nếu đã có user trong store, hydrate ngay để render tức thì
+        if (user) {
+          hydrateFromUser(user);
+          setIsLoadingProfile(false);
+
+          // Refresh nền để đảm bảo dữ liệu mới nhất nhưng không chặn UI
+          try {
+            await fetchProfile();
+          } catch (error) {
+            console.error('Background refresh profile error:', error);
+          }
           return;
         }
 
@@ -107,12 +125,17 @@ const ProfilePage = () => {
         console.error('Failed to load profile:', error);
         showToast.error(t('common.error'));
       } finally {
-        setIsLoadingProfile(false);
+        if (!cancelled) {
+          setIsLoadingProfile(false);
+        }
       }
     };
 
     loadProfile();
-  }, [fetchProfile, navigate, t]);
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchProfile, hydrateFromUser, navigate, t, user]);
 
   // ===== RENDER LOADING STATE =====
   if (isLoadingProfile) {
