@@ -4,7 +4,7 @@ import { useAuthStore } from '../features/useStore';
 import { showToast } from '../utils/toastUtils';
 
 export const useProfileLogic = () => {
-  const { updateUserInfo } = useAuthStore();
+  const updateUserInfo = useAuthStore((state) => state.updateUserInfo);
 
   // ===== PROFILE STATE =====
   const [profileData, setProfileData] = useState({
@@ -94,6 +94,11 @@ export const useProfileLogic = () => {
 
   // ===== FETCH PROFILE =====
   const fetchProfile = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return null;
+    }
+
     try {
       const response = await api.get('/user/profile');
       const { data } = response.data;
@@ -109,6 +114,7 @@ export const useProfileLogic = () => {
       });
 
       setAvatarPreview(data.avatar || '');
+      return data;
     } catch (error) {
       console.error('Fetch profile error:', error);
       throw error;

@@ -23,19 +23,19 @@
  * ============================================================================
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Mail, Loader2, Save, CheckCircle2, Shield } from 'lucide-react';
 import { AvatarUpload } from './AvatarUpload';
 import { useI18n } from '../../utils/i18n';
 
-export const AccountInfoCard = ({
+export const AccountInfoCard = memo(function AccountInfoCard({
   profileData,
   avatarPreview,
   isSavingProfile,
   onAvatarChange,
   onUpdateProfile,
   setProfileData,
-}) => {
+}) {
   const { t } = useI18n();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -145,4 +145,4 @@ export const AccountInfoCard = ({
       </div>
     </div>
   );
-};
+});

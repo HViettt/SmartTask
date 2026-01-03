@@ -380,7 +380,7 @@ export const TaskDetailModal = ({ isOpen, onClose, task, onUpdate }) => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      {t('tasks.form.time') || 'Giờ'}
+                      {t('tasks.form.time')}
                     </label>
                     <input
                       type="time"

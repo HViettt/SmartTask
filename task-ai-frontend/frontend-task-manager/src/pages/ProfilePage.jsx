@@ -21,10 +21,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, User } from 'lucide-react';
 import { showToast } from '../utils/toastUtils';
-import { useAuthStore } from '../features/useStore';
-import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 // Import component con
@@ -37,9 +34,39 @@ import { useI18n } from '../utils/i18n';
 // Custom Hook
 import { useProfileLogic } from '../hooks/useProfileLogic';
 
+const ProfileSkeleton = () => {
+  const skeletonCard = 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm';
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="bg-gradient-to-r from-blue-600/10 to-emerald-600/10 dark:from-blue-600/5 dark:to-emerald-600/5 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="flex items-start gap-4 animate-pulse">
+            <div className="w-12 h-12 rounded-xl bg-gray-300 dark:bg-gray-700" />
+            <div className="space-y-3">
+              <div className="h-6 w-48 bg-gray-300 dark:bg-gray-700 rounded" />
+              <div className="h-4 w-64 bg-gray-200 dark:bg-gray-800 rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex gap-4 mb-6 animate-pulse">
+          <div className="h-10 w-28 bg-gray-200 dark:bg-gray-800 rounded" />
+          <div className="h-10 w-28 bg-gray-200 dark:bg-gray-800 rounded" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className={`lg:col-span-2 h-64 ${skeletonCard} animate-pulse`} />
+          <div className={`h-64 ${skeletonCard} animate-pulse`} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ProfilePage = () => {
   // ===== STATE MANAGEMENT =====
-  const { updateUserInfo } = useAuthStore();
   const navigate = useNavigate();
   const { t } = useI18n();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -68,6 +95,12 @@ const ProfilePage = () => {
   useEffect(() => {
     const loadProfile = async () => {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
         setIsLoadingProfile(true);
         await fetchProfile();
       } catch (error) {
@@ -79,18 +112,11 @@ const ProfilePage = () => {
     };
 
     loadProfile();
-  }, []);
+  }, [fetchProfile, navigate, t]);
 
   // ===== RENDER LOADING STATE =====
   if (isLoadingProfile) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 dark:text-blue-400" />
-          <p className="text-gray-600 dark:text-gray-400">Đang tải thông tin...</p>
-        </div>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   // ===== RENDER MAIN PAGE =====
