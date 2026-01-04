@@ -400,7 +400,7 @@ const checkAndUpdateOverdueTasks = async () => {
 };
 
 const initializeScheduler = () => {
-    const deadlineJob = schedule.scheduleJob('0 0 2 * * *', async () => {
+    const deadlineJob = schedule.scheduleJob('0 0 7 * * *', async () => {
         try {
             await processDeadlineNotifications();
         } catch (error) {
