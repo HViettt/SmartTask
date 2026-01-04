@@ -68,6 +68,9 @@ const getCleanUser = (user) => {
         avatar: user.avatar || getDefaultAvatar(user.name), // Fallback to default avatar
         preferences: user.preferences,
         isVerified: user.isVerified,
+        createdAt: user.createdAt,
+        isGoogleUser: !!user.googleId,
+        hasPassword: user.hasPassword || false,
     };
 };
 
