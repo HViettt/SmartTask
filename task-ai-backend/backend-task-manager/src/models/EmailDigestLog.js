@@ -1,23 +1,4 @@
 const mongoose = require('mongoose');
-
-/**
- * ============================================================================
- * EMAIL DIGEST LOG MODEL
- * ============================================================================
- * Mục đích: Ghi lại lịch sử gửi email tổng hợp deadline hàng ngày
- * 
- * Tính năng:
- * - Tránh gửi trùng lặp: 1 user chỉ nhận 1 email/ngày
- * - Lưu trạng thái: sent/failed + error message
- * - Tracked tasks: Danh sách task được gửi + tổng số (dùng để audit)
- * 
- * Unique constraint: { userId, digestDate } -> 1 record/user/ngày
- * 
- * Author: System Implementation
- * Last Updated: December 20, 2025
- * ============================================================================
- */
-
 const emailDigestLogSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,

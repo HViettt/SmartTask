@@ -14,6 +14,9 @@ router.post('/ai-parse', protect, taskController.parseTaskText);
 // Existing AI suggest route
 router.post('/ai-suggest', protect, taskController.suggestTasks);
 
+// Restore task đã soft-delete
+router.patch('/:id/restore', protect, taskController.restoreTask);
+
 router.route('/:id')
   .put(protect, taskController.updateTask)
   .delete(protect, taskController.deleteTask);

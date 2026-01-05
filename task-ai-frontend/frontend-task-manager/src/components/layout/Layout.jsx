@@ -60,9 +60,12 @@ export const Layout = () => {
         // ✅ Ensure tasks is an array
         if (!Array.isArray(tasks)) return;
 
+        // ✅ Filter out deleted tasks before checking deadline
+        const activeTasks = tasks.filter(t => !t.isDeleted);
+
         // ✅ Dùng helper functions thay vì manual parsing
-        const overdue = tasks.filter(isTaskExpired);
-        const dueSoon24h = tasks.filter(t => isTaskDueSoon(t, 24)); // Còn ≤ 24 giờ
+        const overdue = activeTasks.filter(isTaskExpired);
+        const dueSoon24h = activeTasks.filter(t => isTaskDueSoon(t, 24)); // Còn ≤ 24 giờ
 
         // ✅ Clear flag NGAY để tránh toast spam khi navigate
         sessionStorage.removeItem('justLoggedIn');
@@ -82,7 +85,8 @@ export const Layout = () => {
     // Small delay to ensure tasks are loaded
     const timer = setTimeout(checkDeadlineOnce, 1000);
     return () => clearTimeout(timer);
-  }, [tasks, hasShownDeadlineAlert, fetchTasks, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks.length, hasShownDeadlineAlert]);
 
   const NavItem = ({ to, icon: Icon, label }) => (
     <NavLink
@@ -123,7 +127,7 @@ export const Layout = () => {
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4 px-2">
             <img 
-              src={user?.avatar}
+              src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true&size=96`}
               alt={user?.name || 'Avatar'} 
               className="w-10 h-10 rounded-full border border-gray-200 bg-gray-100 object-cover"
               onError={(e) => {

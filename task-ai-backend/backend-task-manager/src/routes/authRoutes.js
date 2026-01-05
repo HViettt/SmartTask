@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { protect } = require('../middlewares/authMiddleware'); // Cần một middleware bảo vệ
+const { protect } = require('../middlewares/authMiddleware'); 
 const { validateRegister, validateLogin, validateVerifyEmail } = require('../middlewares/validate.middleware');
 
 router.post('/register', validateRegister, authController.register);

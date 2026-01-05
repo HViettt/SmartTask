@@ -16,6 +16,14 @@ const taskSchema = new mongoose.Schema({
     required: true,
     index: true 
   },
+  // Soft-delete metadata (khong dung plugin de chu dong kiem soat hanh vi)
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  deletedAt: { type: Date, default: null, index: true },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   title: { type: String, required: true },
   description: { type: String },
   deadline: { type: Date, required: true },
@@ -50,6 +58,7 @@ const taskSchema = new mongoose.Schema({
 taskSchema.index({ userId: 1, status: 1 });
 taskSchema.index({ userId: 1, deadline: 1 });
 taskSchema.index({ userId: 1, normalizedTitle: 1, deadline: 1 });
+taskSchema.index({ userId: 1, isDeleted: 1, deletedAt: 1 });
 
 // Ensure normalized title is always stored for duplicate detection
 taskSchema.pre('save', function(next) {

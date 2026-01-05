@@ -75,14 +75,12 @@ export const NotificationItem = ({ notification, onClick }) => {
   let renderedMessage = formatNotificationMessage(notification, t);
   if (type === 'DUE_SOON') {
     const count = dueSoonTasks.length;
-    renderedMessage = count > 0
-      ? t('notifications.templates.deadlineSoonCount', { count })
-      : renderedMessage;
+    // ✅ Luôn hiển thị count thực tế, kể cả khi = 0
+    renderedMessage = t('notifications.templates.deadlineSoonCount', { count });
   } else if (type === 'OVERDUE') {
     const count = overdueTasks.length;
-    renderedMessage = count > 0
-      ? t('notifications.templates.overdueCount', { count })
-      : renderedMessage;
+    // ✅ Luôn hiển thị count thực tế, kể cả khi = 0
+    renderedMessage = t('notifications.templates.overdueCount', { count });
   }
 
   return (

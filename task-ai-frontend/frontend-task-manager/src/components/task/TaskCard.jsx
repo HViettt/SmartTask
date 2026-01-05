@@ -26,17 +26,26 @@
 import React, { useState } from 'react';
 import { showToast } from '../../utils/toastUtils';
 import { 
-  Check, Calendar, Trash2, Edit, CheckCircle2, StickyNote, Sparkles
+  Check, Calendar, Trash2, Edit, CheckCircle2, StickyNote, Sparkles, RotateCcw
 } from 'lucide-react';
 import { TaskPriority, TaskComplexity, TaskStatus } from '../../types.js';
 import { useI18n } from '../../utils/i18n';
 import { ConfirmDialog } from '../common/ConfirmDialog.jsx';
 import { isTaskExpired } from '../../utils/deadlineHelpers.js';
 
-export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail, isHighlighted = false }) => {
+const RESTORE_WINDOW_DAYS = 30;
+
+export const TaskCard = ({ task, index, onUpdate, onDelete, onRestore, onEdit, onViewDetail, isHighlighted = false }) => {
   const { t, locale } = useI18n();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const isDeleted = !!task?.isDeleted;
+  const deletedAtDate = task?.deletedAt ? new Date(task.deletedAt) : null;
+  const daysLeft = deletedAtDate
+    ? Math.max(0, RESTORE_WINDOW_DAYS - Math.floor((Date.now() - deletedAtDate.getTime()) / (1000 * 60 * 60 * 24)))
+    : RESTORE_WINDOW_DAYS;
 
   const statusColors = {
     [TaskStatus.TODO]: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
@@ -74,6 +83,10 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
   };
 
   const handleToggleComplete = async () => {
+    if (isDeleted) {
+      showToast.info('Không thể cập nhật vì công việc đang ở trạng thái xoá tạm.');
+      return;
+    }
     const newStatus = task.status === TaskStatus.DONE ? TaskStatus.DOING : TaskStatus.DONE;
     try {
       await onUpdate(task._id, { status: newStatus });
@@ -89,6 +102,10 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
   };
 
   const handleMarkDone = async () => {
+    if (isDeleted) {
+      showToast.info('Không thể cập nhật vì công việc đang ở trạng thái xoá tạm.');
+      return;
+    }
     try {
       await onUpdate(task._id, { status: TaskStatus.DONE });
       const titleSuffix = task.title ? ` "${task.title}"` : '';
@@ -99,6 +116,10 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
   };
 
   const handleStart = async () => {
+    if (isDeleted) {
+      showToast.info('Không thể cập nhật vì công việc đang ở trạng thái xoá tạm.');
+      return;
+    }
     // Move from Todo -> Doing
     if (task.status === TaskStatus.TODO) {
       try {
@@ -112,6 +133,10 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
   };
 
   const handleRevert = async () => {
+    if (isDeleted) {
+      showToast.info('Không thể cập nhật vì công việc đang ở trạng thái xoá tạm.');
+      return;
+    }
     // Move from Done -> Doing (reopen)
     if (task.status === TaskStatus.DONE) {
       try {
@@ -128,13 +153,30 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     setIsDeleting(true);
     try {
       const deleted = await onDelete(task._id);
-      const deletedSuffix = deleted?.title ? ` "${deleted.title}"` : '';
-      showToast.success(`${t('tasks.toasts.deleted')}${deletedSuffix}`.trim());
+      const deletedSuffix = deleted?.data?.title || deleted?.title ? ` "${(deleted?.data || deleted)?.title}"` : '';
+      const message = deleted?.message || 'Công việc đã được xoá tạm thời trong 30 ngày.';
+      showToast.success(`${message}${deletedSuffix}`.trim());
       setShowDeleteConfirm(false);
     } catch (err) {
       showToast.error(t('tasks.toasts.deleteError'));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!onRestore) return;
+    setIsRestoring(true);
+    try {
+      const restored = await onRestore(task._id);
+      const restoredTitle = restored?.data?.title || restored?.title || task.title;
+      const message = restored?.message || 'Công việc đã được khôi phục.';
+      const titleSuffix = restoredTitle ? ` "${restoredTitle}"` : '';
+      showToast.success(`${message}${titleSuffix}`.trim());
+    } catch (err) {
+      showToast.error('Khôi phục thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -250,6 +292,16 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
               </div>
             )}
           </div>
+
+          {isDeleted && (
+            <div className="mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200 text-sm flex flex-col gap-1">
+              <span className="font-semibold">Công việc đang ở trạng thái xoá tạm</span>
+              <span>Còn khoảng {daysLeft} ngày để khôi phục trước khi xoá vĩnh viễn.</span>
+              {deletedAtDate && (
+                <span className="text-xs">Đã xoá lúc {deletedAtDate.toLocaleString(locale)}</span>
+              )}
+            </div>
+          )}
           
           {task.completedAt && task.status === TaskStatus.DONE && (
             <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
@@ -261,7 +313,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
 
         <div className="flex md:flex-col items-center md:items-end gap-2 mt-4 md:mt-0 border-t md:border-t-0 border-gray-100 dark:border-gray-700 pt-3 md:pt-0">
           {/* Action buttons: Start / Complete / Reopen */}
-          {task.status === TaskStatus.TODO && (
+          {!isDeleted && task.status === TaskStatus.TODO && (
             <button
               onClick={handleStart}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200"
@@ -270,7 +322,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
             </button>
           )}
 
-          {task.status !== TaskStatus.DONE && (
+          {!isDeleted && task.status !== TaskStatus.DONE && (
             <button 
               onClick={handleMarkDone}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30 rounded-md transition-colors border border-emerald-200 dark:border-emerald-800"
@@ -279,7 +331,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
             </button>
           )}
 
-          {task.status === TaskStatus.DONE && (
+          {!isDeleted && task.status === TaskStatus.DONE && (
             <button
               onClick={handleRevert}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors border border-yellow-200"
@@ -289,20 +341,38 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
           )}
 
           <div className="flex gap-1 w-full md:w-auto">
-            <button 
-              onClick={() => onEdit(task)}
-              className="flex-1 md:flex-none px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title={t('common.edit')}
-            >
-              <Edit size={16} />
-            </button>
-            <button 
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex-1 md:flex-none px-3 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              title={t('common.delete')}
-            >
-              <Trash2 size={16} />
-            </button>
+            {!isDeleted && (
+              <>
+                <button 
+                  onClick={() => onEdit(task)}
+                  className="flex-1 md:flex-none px-3 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title={t('common.edit')}
+                >
+                  <Edit size={16} />
+                </button>
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex-1 md:flex-none px-3 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  title={t('common.delete')}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+
+            {isDeleted && (
+              <button
+                onClick={handleRestore}
+                disabled={isRestoring}
+                className="flex-1 md:flex-none px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-700 disabled:opacity-70"
+                title="Khôi phục công việc"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <RotateCcw size={16} />
+                  {isRestoring ? 'Đang khôi phục...' : 'Khôi phục'}
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -312,7 +382,7 @@ export const TaskCard = ({ task, index, onUpdate, onDelete, onEdit, onViewDetail
     <ConfirmDialog
       isOpen={showDeleteConfirm}
       title="🗑️ Xoá công việc?"
-      message={`Bạn có chắc chắn muốn xoá "${task.title}"? Hành động này không thể hoàn tác.`}
+      message={`Bạn có chắc chắn muốn xoá "${task.title}"? Công việc sẽ được xoá tạm thời và có thể khôi phục trong ${RESTORE_WINDOW_DAYS} ngày.`}
       isDangerous={true}
       confirmText="🗑️ Xoá"
       cancelText="🚫 Hủy"

@@ -49,6 +49,7 @@ const buildDeadlineBucketsByTasks = (tasks, now = new Date()) => {
 const getUserDeadlineBuckets = async (userId, now = new Date()) => {
   const tasks = await Task.find({
     userId,
+    isDeleted: false,
     status: { $ne: 'Done' },
     deadline: { $exists: true, $ne: null }
   }).lean();
@@ -60,6 +61,7 @@ const getUserDeadlineBuckets = async (userId, now = new Date()) => {
 // Lấy bucket cho tất cả user (dùng cho scheduler batch)
 const getAllUsersDeadlineBuckets = async (now = new Date()) => {
   const tasks = await Task.find({
+    isDeleted: false,
     status: { $ne: 'Done' },
     deadline: { $exists: true, $ne: null }
   }).lean();

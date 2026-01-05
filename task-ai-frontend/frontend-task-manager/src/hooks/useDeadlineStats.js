@@ -1,21 +1,3 @@
-/**
- * ============================================================================
- * SHARED DEADLINE STATS HOOK
- * ============================================================================
- * Purpose: Compute deadline statistics (overdue, due soon counts) using
- *          EXACTLY THE SAME LOGIC as Dashboard so Notification counts match
- * 
- * Usage:
- *   const { overdueTasks, dueSoonTasks, upcomingTasks } = useDeadlineStats();
- * 
- * Features:
- *   - Uses isTaskExpired & isTaskDueSoon helpers (client-side logic)
- *   - Filters only non-Done tasks (status ≠ 'Done')
- *   - DueSoon = deadline within 48h (Dashboard uses 72h for list, but 48h for stats)
- *   - Reactive: updates when useTaskStore.tasks changes
- *   - No API calls: uses in-memory task data
- * ============================================================================
- */
 
 import { useMemo } from 'react';
 import { useTaskStore } from '../features/taskStore.js';
@@ -36,8 +18,8 @@ export const useDeadlineStats = () => {
       };
     }
 
-    // Filter to non-Done tasks only
-    const activeTasks = tasks.filter(t => t.status !== 'Done');
+    // ✅ Filter to non-Done AND non-Deleted tasks only
+    const activeTasks = tasks.filter(t => t.status !== 'Done' && !t.isDeleted);
 
     // Partition by deadline status
     const overdueTasks = activeTasks.filter(t => isTaskExpired(t));

@@ -221,12 +221,12 @@ export const useAuthStore = create((set, get) => ({
     loginWithPassword: async ({ email, password }) => { 
         set({ isLoading: true, error: null });
         try {
-            const res = await api.post('/auth/login', { email, password }); // ✅ Dùng api.post
+            const res = await api.post('/auth/login', { email, password }); // Dùng api.post
             
             const { token, user } = res.data;
             setToken(token);
             setUserData(user);
-            // ✅ Set flag để Layout hiển thị toast deadline khi login
+            //  Set flag để Layout hiển thị toast deadline khi login
             sessionStorage.setItem('justLoggedIn', 'true');
             // Reset state task cho tài khoản mới rồi fetch lại
             try {

@@ -65,7 +65,8 @@ export const Dashboard = () => {
     if (user?._id) {
       fetchTasks();
     }
-  }, [user?._id, fetchTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id]);
 
   const filteredTasks = useMemo(() => {
     // ✅ Ensure tasks is an array
@@ -73,7 +74,10 @@ export const Dashboard = () => {
       return [];
     }
 
-    if (timeFilter === 'all') return tasks;
+    // ✅ Always filter out deleted tasks first
+    const activeTasks = tasks.filter(t => !t.isDeleted);
+
+    if (timeFilter === 'all') return activeTasks;
 
     const now = new Date();
     const cutoff = new Date();
@@ -81,7 +85,7 @@ export const Dashboard = () => {
     cutoff.setDate(cutoff.getDate() - (timeFilter === '7d' ? 7 : 30));
 
     // Gộp các mốc thời gian (created/updated/completed/deadline) để không bỏ lỡ task vừa hoạt động
-    return tasks.filter(task => {
+    return activeTasks.filter(task => {
       const created = task.createdAt ? new Date(task.createdAt) : null;
       const updated = task.updatedAt ? new Date(task.updatedAt) : null;
       const completed = task.completedAt ? new Date(task.completedAt) : null;

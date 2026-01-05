@@ -1,7 +1,3 @@
-/**
- * Task Scheduler Module - Optimized
- * Tự động quản lý task và lập lịch thông báo deadline
- */
 
 const schedule = require('node-schedule');
 const moment = require('moment-timezone');
@@ -13,6 +9,9 @@ const { sendEmail } = require('./email');
 const { isTaskOverdue, getDeadlineStatus, formatDeadline, VN_TIMEZONE } = require('./deadlineHelper');
 const { NOTIFICATION_TYPES, ACTIVE_TASK_STATUSES } = require('../common/constants');
 const { buildDeadlineBucketsByTasks, getAllUsersDeadlineBuckets, getUserDeadlineBuckets, mapTaskSummary } = require('../services/deadlineService');
+
+// Thoi gian luu tru soft-delete truoc khi don cung (ngay)
+const SOFT_DELETE_RETENTION_DAYS = 30;
 
 /**
  * Format date to Vietnamese locale with timezone awareness.
@@ -201,6 +200,7 @@ const refreshUserDeadlineNotifications = async (userId, bucket, { fetchIfMissing
     if (!bucket && fetchIfMissing) {
         const activeTasks = await Task.find({
             userId,
+            isDeleted: false,
             status: { $ne: 'Done' },
             deadline: { $exists: true, $ne: null }
         }).lean();
@@ -300,6 +300,7 @@ const processDeadlineNotifications = async () => {
         const todayDateStr = getTodayDateVN();
         
         const incompleteTasks = await Task.find({
+            isDeleted: false,
             status: { $ne: 'Done' },
             deadline: { $exists: true, $ne: null }
         }).lean();
@@ -385,6 +386,7 @@ const processDeadlineNotifications = async () => {
 const checkAndUpdateOverdueTasks = async () => {
     try {
         const activeTasks = await Task.find({
+            isDeleted: false,
             status: { $ne: 'Done' },
             deadline: { $exists: true, $ne: null }
         }).lean();
@@ -396,6 +398,26 @@ const checkAndUpdateOverdueTasks = async () => {
         }
     } catch (error) {
         console.error('[Scheduler] Lỗi checkAndUpdateOverdueTasks:', error.message);
+    }
+};
+
+// Xoa cung cac task da qua han luu tru 30 ngay (khong the khoi phuc)
+const purgeExpiredSoftDeletedTasks = async () => {
+    try {
+        const cutoff = new Date(Date.now() - SOFT_DELETE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+        const result = await Task.deleteMany({
+            isDeleted: true,
+            deletedAt: { $lte: cutoff }
+        });
+
+        if (result?.deletedCount) {
+            console.info('[Scheduler] Purged expired soft-deleted tasks', {
+                deletedCount: result.deletedCount,
+                cutoff
+            });
+        }
+    } catch (error) {
+        console.error('[Scheduler] purgeExpiredSoftDeletedTasks failed:', error.message);
     }
 };
 
@@ -416,8 +438,17 @@ const initializeScheduler = () => {
             console.error('[Scheduler] Overdue check failed:', error.message);
         }
     });
+
+    // Don cung cac task da qua 30 ngay ke tu khi soft-delete
+    const hardDeleteJob = schedule.scheduleJob('0 30 3 * * *', async () => {
+        try {
+            await purgeExpiredSoftDeletedTasks();
+        } catch (error) {
+            console.error('[Scheduler] Hard delete job failed:', error.message);
+        }
+    });
     
-    return { deadlineJob, overdueJob };
+    return { deadlineJob, overdueJob, hardDeleteJob };
 };
 
 const runImmediately = async () => {
@@ -428,6 +459,7 @@ module.exports = {
     initializeScheduler,
     processDeadlineNotifications,
     checkAndUpdateOverdueTasks,
+    purgeExpiredSoftDeletedTasks,
     refreshUserDeadlineNotifications,
     runImmediately
 };

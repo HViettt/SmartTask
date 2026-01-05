@@ -38,7 +38,11 @@ router.get('/status', protect, (req, res) => {
     res.json({
         success: true,
         message: 'Task Scheduler is active',
-        schedule: 'Runs daily at 9:00 AM (Asia/Ho_Chi_Minh)',
+        schedule: [
+            'Email digest: 07:00 Asia/Ho_Chi_Minh',
+            'Overdue refresh: mỗi 5 phút',
+            'Hard delete soft-deleted >30 ngày: 03:30 Asia/Ho_Chi_Minh'
+        ],
         nextRun: 'Check server logs for next scheduled run'
     });
 });

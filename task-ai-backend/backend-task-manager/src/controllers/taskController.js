@@ -1,20 +1,3 @@
-/**
- * ============================================================================
- * TASK CONTROLLER - QUẢN LÝ CÔNG VIỆC
- * ============================================================================
- * Mục đích: Xử lý các logic liên quan đến công việc (CRUD)
- * 
- * API Endpoints:
- * - GET  /api/tasks          - Lấy danh sách tất cả công việc của user
- * - POST /api/tasks          - Tạo công việc mới
- * - PUT  /api/tasks/:id      - Cập nhật công việc
- * - DELETE /api/tasks/:id    - Xoá công việc
- * - POST /api/tasks/ai-suggest - Gợi ý thứ tự ưu tiên công việc bằng AI
- * 
- * Authentication: Tất cả endpoints cần JWT token (yêu cầu xác thực)
- * 
- * ============================================================================
- */
 
 const Task = require('../models/Task');
 const moment = require('moment-timezone');
@@ -23,6 +6,9 @@ const aiService = require('../utils/aiService');
 const { resolveVietnameseDate } = require('../utils/dateResolver');
 const { getDeadlineStatus, isValidDeadlineTime, isTaskOverdue } = require('../utils/deadlineHelper');
 const { refreshUserDeadlineNotifications } = require('../utils/taskScheduler');
+
+// Soft-delete retention window (days)
+const SOFT_DELETE_RETENTION_DAYS = 30;
 
 // Helpers
 const normalizeTitle = (title = '') =>
@@ -51,13 +37,25 @@ const getDayRange = (deadline) => {
  */
 exports.getTasks = async (req, res) => {
   try {
-    // ✅ Lấy công việc sắp xếp theo ngày tạo mới nhất
-    const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    // ✅ Lấy công việc sắp xếp theo ngày tạo mới nhất (mặc định bỏ qua task đã soft-delete)
+    const { includeDeleted = 'false', scope } = req.query;
+    const includeDeletedFlag = includeDeleted === 'true';
+    const deletedOnly = scope === 'deleted' || req.query.deletedOnly === 'true';
+
+    const filter = { userId: req.user._id };
+    if (deletedOnly) {
+      filter.isDeleted = true;
+    } else if (!includeDeletedFlag) {
+      filter.isDeleted = false;
+    }
+
+    const sort = deletedOnly ? { deletedAt: -1 } : { createdAt: -1 };
+    const tasks = await Task.find(filter).sort(sort);
     
     // Add computed deadline status to each task
     const tasksWithStatus = tasks.map(task => {
       const taskObj = task.toObject();
-      taskObj.computedStatus = getDeadlineStatus(taskObj);
+      taskObj.computedStatus = taskObj.isDeleted ? 'deleted' : getDeadlineStatus(taskObj);
       return taskObj;
     });
     
@@ -134,6 +132,7 @@ exports.createTask = async (req, res) => {
     if (start && end) {
       const duplicate = await Task.findOne({
         userId: req.user._id,
+        isDeleted: false,
         normalizedTitle,
         deadline: { $gte: start, $lte: end }
       });
@@ -193,7 +192,7 @@ exports.createTask = async (req, res) => {
  */
 exports.updateTask = async (req, res) => {
   try {
-    const currentTask = await Task.findOne({ _id: req.params.id, userId: req.user._id });
+    const currentTask = await Task.findOne({ _id: req.params.id, userId: req.user._id, isDeleted: false });
 
     if (!currentTask) {
       return res.status(404).json({
@@ -252,6 +251,7 @@ exports.updateTask = async (req, res) => {
         const duplicate = await Task.findOne({
           _id: { $ne: currentTask._id },
           userId: req.user._id,
+          isDeleted: false,
           normalizedTitle: nextNormalizedTitle,
           deadline: { $gte: start, $lte: end }
         });
@@ -284,7 +284,7 @@ exports.updateTask = async (req, res) => {
 
     // 🔍 Tìm và cập nhật task (chỉ được cập nhật task của chính user)
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id, userId: req.user._id, isDeleted: false },
       updates,
       { new: true }
     );
@@ -320,27 +320,104 @@ exports.updateTask = async (req, res) => {
  */
 exports.deleteTask = async (req, res) => {
   try {
-    const task = await Task.findOneAndDelete({ 
+    const task = await Task.findOne({ 
       _id: req.params.id, 
-      userId: req.user._id 
+      userId: req.user._id,
+      isDeleted: false
     });
 
     if (!task) {
       return res.status(404).json({ 
         success: false,
-        message: 'Công việc không tồn tại' 
+        message: 'Công việc không tồn tại hoặc đã bị xoá tạm thời' 
       });
     }
 
+    // 📝 Soft-delete: giữ dữ liệu, ghi nhận audit để có thể khôi phục
+    task.isDeleted = true;
+    task.deletedAt = new Date();
+    task.deletedBy = req.user._id;
+    await task.save();
+
+    try {
+      await refreshUserDeadlineNotifications(req.user._id);
+    } catch (notifyErr) {
+      // Không chặn flow xoá nếu refresh badge lỗi
+    }
+
+    console.info('[Audit] Soft-delete task', {
+      taskId: task._id.toString(),
+      userId: req.user._id.toString(),
+      deletedAt: task.deletedAt
+    });
+
+    const taskObj = task.toObject();
+    taskObj.computedStatus = 'deleted';
+
     res.json({
       success: true,
-      data: task,
-      message: 'Công việc đã được xoá thành công'
+      data: taskObj,
+      message: `Công việc đã được xoá tạm thời. Bạn có thể khôi phục trong ${SOFT_DELETE_RETENTION_DAYS} ngày.`
     });
   } catch (error) {
     res.status(500).json({ 
       success: false,
       message: 'Lỗi khi xoá công việc: ' + error.message 
+    });
+  }
+};
+
+/**
+ * 📌 PATCH /api/tasks/:id/restore
+ * Khôi phục task đã soft-delete trong vòng 30 ngày
+ */
+exports.restoreTask = async (req, res) => {
+  try {
+    const cutoff = moment().subtract(SOFT_DELETE_RETENTION_DAYS, 'days').toDate();
+
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+      isDeleted: true
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Công việc không tồn tại hoặc không ở trạng thái đã xoá'
+      });
+    }
+
+    if (!task.deletedAt || task.deletedAt < cutoff) {
+      return res.status(410).json({
+        success: false,
+        message: 'Không thể khôi phục: công việc đã vượt quá thời gian lưu trữ 30 ngày'
+      });
+    }
+
+    task.isDeleted = false;
+    task.deletedAt = null;
+    task.deletedBy = null;
+    await task.save();
+
+    try {
+      await refreshUserDeadlineNotifications(req.user._id);
+    } catch (notifyErr) {
+      // Không chặn flow khôi phục nếu refresh badge lỗi
+    }
+
+    const taskObj = task.toObject();
+    taskObj.computedStatus = getDeadlineStatus(taskObj);
+
+    return res.json({
+      success: true,
+      data: taskObj,
+      message: 'Công việc đã được khôi phục thành công'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi khôi phục công việc: ' + error.message
     });
   }
 };
@@ -361,6 +438,7 @@ exports.suggestTasks = async (req, res) => {
     // 🔍 Lấy tất cả công việc chưa hoàn thành của user
     const tasks = await Task.find({ 
       userId: req.user._id,
+      isDeleted: false,
       status: { $ne: 'Done' } 
     });
 

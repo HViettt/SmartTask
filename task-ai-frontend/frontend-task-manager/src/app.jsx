@@ -96,12 +96,30 @@ const App = () => {
    * Initialize authentication on app load
    * Validate stored token and restore user session
    * Shows loading screen while validating
+   * 
+   * ✅ NEW: Detect new day and reset badge notification
+   * Logic:
+   * - Store last login date in localStorage (format: YYYY-MM-DD)
+   * - On app load: Check if today is different from last login
+   * - If new day: Reset badge by clearing lastUnreadCountRef
+   *   (This will cause badge to recalculate on mount)
    */
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem('token');
       
       if (token) {
+        // ✅ NEW: Check if it's a new day
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const lastLoginDate = localStorage.getItem('lastLoginDate');
+        
+        if (lastLoginDate !== today) {
+          // New day detected! Reset badge notification
+          // Clear the ref so badge will recalculate
+          localStorage.setItem('badgeResetFlag', 'true');
+          localStorage.setItem('lastLoginDate', today);
+        }
+        
         // Có token: fetch user profile để validate
         await fetchUser();
       }

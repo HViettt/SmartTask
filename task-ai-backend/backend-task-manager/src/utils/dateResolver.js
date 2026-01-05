@@ -1,34 +1,3 @@
-/**
- * ============================================================================
- * VIETNAMESE DATE RESOLVER
- * ============================================================================
- * 
- * Mục đích: Giải quyết các biểu thức ngày/giờ tiếng Việt thành DateTime chính xác
- * 
- * ⚠️ TẠI SAO BACKEND PHẢI LÀM CÁC VIỆC NÀY?
- * 
- * 1. AI/LLM không đủ tin cậy cho tính toán thời gian
- *    - LLM là text prediction, không có "khái niệm" thời gian
- *    - Có thể trả về ngày sai (tuần sau = today + 7 = sai!)
- *    - Không biết timezone, daylight saving time, etc.
- * 
- * 2. Ngôn ngữ tự nhiên tiếng Việt phức tạp
- *    - "Tuần sau" = NEXT ISO WEEK (Monday-Sunday), không phải +7 days
- *    - "Thứ 2 tuần sau" = Monday of next week (cần tính chính xác)
- *    - "9 sáng" vs "9 chiều" = AM vs PM (AI có thể nhầm)
- * 
- * 3. Timezone & locale
- *    - Việt Nam dùng timezone "Asia/Ho_Chi_Minh"
- *    - Tuần bắt đầu từ Thứ 2 (ISO week)
- *    - AI không biết các rule này
- * 
- * ✅ GIẢI PHÁP: Backend làm việc "dịch thuật"
- *    - AI chỉ return: dateText (text thô), timeText (time)
- *    - Backend xử lý: chuyển đổi thành ISO DateTime chính xác
- *    - Database lưu: chỉ ISO DateTime (dễ query, dễ so sánh)
- * 
- * ============================================================================
- */
 
 const moment = require('moment-timezone');
 
@@ -42,7 +11,6 @@ const normalizeText = (text) => {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ');
-  // ✅ KHÔNG xóa dấu tiếng Việt - cần giữ để match "thứ 2", "tuần sau"
 };
 
 /**
@@ -72,14 +40,12 @@ const parseVietnameseTime = (timeText) => {
 
       // Adjust hour based on period
       if (period === 'sáng') {
-        // 1-11 sáng (AM)
         if (hour === 12) hour = 0;
       } else if (period === 'chiều') {
-        // 1-5 chiều = 13-17 (PM)
         if (hour !== 12) hour += 12;
       } else if (period === 'tối' || period === 'đêm') {
-        // 6-11 tối/đêm = 18-23
-        if (hour < 12) hour += 12;
+        if (hour === 12) hour = 0;
+        else hour += 12;
       }
     } else {
       return '23:59';

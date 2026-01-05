@@ -16,10 +16,13 @@ import { useI18n } from '../../utils/i18n';
 export const TaskList = () => {
   const { 
     tasks, 
+    deletedTasks,
     addTask, 
     updateTask, 
     deleteTask, 
+    restoreTask,
     fetchTasks, 
+    fetchDeletedTasks,
     suggestTasks,
     isLoading, 
     error,
@@ -39,6 +42,8 @@ export const TaskList = () => {
   const [duplicateTaskInfo, setDuplicateTaskInfo] = useState(null);
   const [pendingFormData, setPendingFormData] = useState(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+  const [activeTab, setActiveTab] = useState('active'); // active | deleted
+  const [hasLoadedDeleted, setHasLoadedDeleted] = useState(false);
   
   // State cho Task Detail Modal
   const [selectedTask, setSelectedTask] = useState(null);
@@ -59,7 +64,16 @@ export const TaskList = () => {
       const timer = setTimeout(() => clearError(), 5000);
       return () => clearTimeout(timer);
     }
-  }, [error, clearError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
+  // Nạp danh sách đã xoá khi người dùng mở tab "Đã xoá"
+  useEffect(() => {
+    if (activeTab === 'deleted' && !hasLoadedDeleted) {
+      fetchDeletedTasks().finally(() => setHasLoadedDeleted(true));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, hasLoadedDeleted]);
   
   // ✅ Handle highlight param from notification
   useEffect(() => {
@@ -105,13 +119,14 @@ export const TaskList = () => {
   };
   const [formData, setFormData] = useState(initialFormState);
 
+  const sourceTasks = activeTab === 'deleted' ? deletedTasks : tasks;
+
   const filteredTasks = useMemo(() => {
-    // ✅ Ensure tasks is an array
-    if (!Array.isArray(tasks)) {
+    if (!Array.isArray(sourceTasks)) {
       return [];
     }
     
-    return tasks.filter(task => {
+    return sourceTasks.filter(task => {
       // ✅ Ensure task and task.title exist
       if (!task || !task.title) {
         return false;
@@ -120,12 +135,20 @@ export const TaskList = () => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesFilter && matchesSearch;
     });
-  }, [tasks, filter, searchTerm]);
+  }, [sourceTasks, filter, searchTerm]);
 
   // 🔽 Sắp xếp theo yêu cầu:
   // - Chia thành 2 nhóm: chưa hoàn thành (Todo/Doing) ở trên, hoàn thành (Done) ở dưới
   // - Mỗi nhóm đều sắp xếp theo ngày đến hạn (deadline) tăng dần
   const sortedTasks = useMemo(() => {
+    if (activeTab === 'deleted') {
+      return [...filteredTasks].sort((a, b) => {
+        const aTime = a.deletedAt ? new Date(a.deletedAt).getTime() : 0;
+        const bTime = b.deletedAt ? new Date(b.deletedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    }
+
     const byDeadlineAsc = (a, b) => {
       const ad = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
       const bd = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
@@ -135,7 +158,7 @@ export const TaskList = () => {
     const unfinished = filteredTasks.filter(t => t.status !== TaskStatus.DONE).sort(byDeadlineAsc);
     const finished = filteredTasks.filter(t => t.status === TaskStatus.DONE).sort(byDeadlineAsc);
     return [...unfinished, ...finished];
-  }, [filteredTasks]);
+  }, [filteredTasks, activeTab]);
 
   const handleOpenModal = (task) => {
     if (task) {
@@ -322,12 +345,30 @@ export const TaskList = () => {
             {t('tasks.headerTitle')}
           </h1>
           <p className="text-gray-500 text-sm">{t('tasks.headerSubtitle')}</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${activeTab === 'active'
+                ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'}`}
+            >
+              Công việc đang hoạt động
+            </button>
+            <button
+              onClick={() => setActiveTab('deleted')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${activeTab === 'deleted'
+                ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'}`}
+            >
+              Đã xoá tạm (30 ngày){deletedTasks?.length ? ` · ${deletedTasks.length}` : ''}
+            </button>
+          </div>
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
           <button
             onClick={handleAISuggestion}
-            disabled={isAILoading || tasks.length === 0}
+            disabled={isAILoading || tasks.length === 0 || activeTab === 'deleted'}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-lg transition-all disabled:opacity-70 shadow-md hover:shadow-lg border border-transparent"
           >
             {isAILoading ? (
@@ -407,6 +448,7 @@ export const TaskList = () => {
                 index={index}
                 onUpdate={updateTask}
                 onDelete={deleteTask}
+                onRestore={restoreTask}
                 onEdit={handleOpenModal}
                 onViewDetail={(task) => {
                   setSelectedTask(task);
@@ -419,11 +461,13 @@ export const TaskList = () => {
 
           {sortedTasks.length === 0 && !isLoading && (
             <EmptyState
-              title="Không có công việc nào"
+              title={activeTab === 'deleted' ? 'Không có công việc đã xoá' : 'Không có công việc nào'}
               message={
-                filter === 'all' && searchTerm === ''
-                  ? 'Bắt đầu bằng cách tạo công việc đầu tiên của bạn'
-                  : 'Không tìm thấy công việc phù hợp với tiêu chí lọc'
+                activeTab === 'deleted'
+                  ? 'Bạn chưa xoá công việc nào trong 30 ngày gần đây.'
+                  : (filter === 'all' && searchTerm === ''
+                      ? 'Bắt đầu bằng cách tạo công việc đầu tiên của bạn'
+                      : 'Không tìm thấy công việc phù hợp với tiêu chí lọc')
               }
               onAction={() => handleOpenModal()}
             />

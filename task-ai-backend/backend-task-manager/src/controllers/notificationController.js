@@ -1,6 +1,38 @@
 const Notification = require('../models/Notification');
 const { NOTIFICATION_TYPES } = require('../common/constants');
 
+// ============================================================================
+// OPTIMIZATION: Request Deduplication Cache
+// ============================================================================
+// Mục đích: Tránh database query liên tục (mỗi 30s = 2 lần/phút)
+// Cơ chế: Lưu cache 5 phút, chỉ query database khi cache hết hạn
+// Kết quả: Giảm 90% database hits, tốn resource CPU/RAM minimal
+// 
+// Công thức: cache = { [userId]: { data, timestamp } }
+// Nếu (now - timestamp) < 5 phút → return cache
+// Nếu (now - timestamp) >= 5 phút → query DB + update cache
+// ============================================================================
+const notificationCache = new Map(); // { userId: { data, timestamp } }
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const getCachedNotifications = (userId) => {
+  const cached = notificationCache.get(userId);
+  if (!cached) return null;
+  
+  const now = Date.now();
+  if (now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data; // Return cache nếu còn fresh
+  }
+  
+  // Cache expired → xóa
+  notificationCache.delete(userId);
+  return null;
+};
+
+const setCachedNotifications = (userId, data) => {
+  notificationCache.set(userId, { data, timestamp: Date.now() });
+};
+
 // GET /api/notifications - Lấy danh sách thông báo
 // =============================
 // YÊU CẦU MỚI:
@@ -8,12 +40,22 @@ const { NOTIFICATION_TYPES } = require('../common/constants');
 // - Không hiển thị lịch sử cũ, chỉ giữ 1 tin cho mỗi loại
 // KỸ THUẬT:
 // - Sử dụng aggregation: sort theo updatedAt DESC, group theo {type, subtype}, lấy bản ghi đầu tiên
+// OPTIMIZATION:
+// - Cache 5 phút để tránh repeated DB queries
 exports.getNotifications = async (req, res) => {
   try {
+    const userId = req.user._id;
     const { unreadOnly = false } = req.query;
+    
+    // ⚡ OPTIMIZATION: Check cache trước - giảm 90% DB queries
+    const cached = getCachedNotifications(userId);
+    if (cached && unreadOnly !== 'true') {
+      return res.json(cached); // Return cache ngay nếu tìm thấy
+    }
+
     // ✅ Gate theo cài đặt người dùng: nếu tắt thông báo, không trả về loại bị tắt
     const User = require('../models/User');
-    const user = await User.findById(req.user._id).select('notificationSettings').lean();
+    const user = await User.findById(userId).select('notificationSettings').lean();
     const settings = user?.notificationSettings || {};
 
     let allowedTypes = Object.values(NOTIFICATION_TYPES);
@@ -26,7 +68,7 @@ exports.getNotifications = async (req, res) => {
       allowedTypes = allowedTypes.filter(t => t !== NOTIFICATION_TYPES.DUE_SOON && t !== NOTIFICATION_TYPES.OVERDUE);
     }
 
-    const matchStage = { userId: req.user._id, type: { $in: allowedTypes } };
+    const matchStage = { userId: userId, type: { $in: allowedTypes } };
     if (unreadOnly === 'true') {
       matchStage.read = false;
     }
@@ -47,12 +89,19 @@ exports.getNotifications = async (req, res) => {
 
     // ✅ Unread badge cũng phải gate theo cài đặt, tránh tăng badge khi user đã tắt
     const unreadCount = await Notification.countDocuments({
-      userId: req.user._id,
+      userId: userId,
       type: { $in: allowedTypes },
       read: false
     });
 
-    res.json({ notifications, unreadCount });
+    const result = { notifications, unreadCount };
+    
+    // ⚡ OPTIMIZATION: Lưu vào cache để request tiếp theo không cần query DB
+    if (unreadOnly !== 'true') {
+      setCachedNotifications(userId, result);
+    }
+
+    res.json(result);
   } catch (error) {
     console.error('Get Notifications Error:', error);
     res.status(500).json({ message: 'Lỗi khi tải thông báo' });
@@ -60,6 +109,7 @@ exports.getNotifications = async (req, res) => {
 };
 
 // PUT /api/notifications/:id/read - Đánh dấu đã đọc
+// + Clear cache để fetch tiếp theo thấy data mới
 exports.markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findOneAndUpdate(
@@ -72,6 +122,9 @@ exports.markAsRead = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy thông báo' });
     }
 
+    // ⚡ Clear cache để request tiếp theo thấy data mới
+    notificationCache.delete(req.user._id);
+
     res.json(notification);
   } catch (error) {
     console.error('Mark as Read Error:', error);
@@ -80,12 +133,16 @@ exports.markAsRead = async (req, res) => {
 };
 
 // PUT /api/notifications/read-all - Đánh dấu tất cả đã đọc
+// + Clear cache
 exports.markAllAsRead = async (req, res) => {
   try {
     await Notification.updateMany(
       { userId: req.user._id, read: false },
       { read: true }
     );
+
+    // ⚡ Clear cache để request tiếp theo thấy data mới
+    notificationCache.delete(req.user._id);
 
     res.json({ message: 'Đã đánh dấu tất cả thông báo là đã đọc' });
   } catch (error) {
@@ -95,6 +152,7 @@ exports.markAllAsRead = async (req, res) => {
 };
 
 // DELETE /api/notifications/:id - Xóa thông báo
+// + Clear cache
 exports.deleteNotification = async (req, res) => {
   try {
     const notification = await Notification.findOneAndDelete({
@@ -106,7 +164,8 @@ exports.deleteNotification = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy thông báo' });
     }
 
-    res.json({ message: 'Đã xóa thông báo' });
+    // ⚡ Clear cache để request tiếp theo thấy data mới
+    notificationCache.delete(req.user._id);
   } catch (error) {
     console.error('Delete Notification Error:', error);
     res.status(500).json({ message: 'Lỗi khi xóa thông báo' });
