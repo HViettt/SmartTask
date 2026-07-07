@@ -1,9 +1,11 @@
+> 💼 Dự án cá nhân — tôi đảm nhiệm toàn bộ vai trò Full Stack Developer 
+> (Frontend, Backend, thiết kế database, deploy production)
 # 🎯 SmartTask - AI Task Management System
 
 > Hệ thống quản lý công việc thông minh với AI scheduling, tự động phát hiện deadline và hỗ trợ đa ngôn ngữ (Tiếng Việt/English)
 
 **Ngày cập nhật:** December 20, 2025  
-**Trạng thái:** ✅ Production Ready (v2.0.0)  
+**Trạng thái:** Production Ready (v2.0.0)  
 **Tech Stack:** React + Node.js + MongoDB + AI (Groq/Gemini)
 
 ---
@@ -29,11 +31,11 @@
 
 ## 🎨 Cập Nhật Mới Nhất (December 20, 2025)
 
-### ✅ Fixed Issues
+### Fixed Issues
 - **Notification Badge Bug**: Badge không cập nhật khi mark as read
-  - ✅ Synthetic notifications (DUE_SOON, OVERDUE) không tính vào unread
-  - ✅ Only EMAIL_SENT counts toward unread counter
-  - ✅ Badge cập nhật **NGAY LẬP TỨC** (không cần reload trang)
+  - Synthetic notifications (DUE_SOON, OVERDUE) không tính vào unread
+  - Only EMAIL_SENT counts toward unread counter
+  - Badge cập nhật **NGAY LẬP TỨC** (không cần reload trang)
   - 💡 Logic: `unreadCount = emailNotifs.filter(n => !n.read).length`
 
 ### 🎨 UI Enhancements
@@ -44,18 +46,18 @@
   - 🔴 Overdue (Quá Hạn) → Màu Đỏ Đậm
   - Định nghĩa trong `src/types.js` (StatusColors constant)
 
-### 🪝 Code Improvements
+### Code Improvements
 - **Shared Deadline Logic**: `useDeadlineStats` hook (Dashboard + Notification)
   - Đồng bộ counts giữa 2 components
   - Real-time updates khi task thay đổi
   - Threshold: 48 giờ cho DUE_SOON counts
 
-### 📄 Documentation
+### Documentation
 - Consolidate from 9 files → **1 README.md**
 - Tất cả thông tin quan trọng tập trung ở đây
 ---
 
-## 🚀 Cài Đặt & Chạy Dự Án
+## Cài Đặt & Chạy Dự Án
 
 ### 1. Yêu Cầu Hệ Thống
 
@@ -146,16 +148,16 @@ npm run dev
 ## ✨ Tính Năng Chính
 
 ### 1. Quản Lý Công Việc
-- ✅ Tạo/Sửa/Xóa công việc
-- ✅ Phân loại theo Priority (Low/Medium/High)
-- ✅ Phân loại theo Complexity (Low/Medium/High)
-- ✅ Trạng thái: Todo → Doing → Done
-- ✅ Tự động phát hiện công việc quá hạn (Overdue)
+- Tạo/Sửa/Xóa công việc
+- Phân loại theo Priority (Low/Medium/High)
+- Phân loại theo Complexity (Low/Medium/High)
+- Trạng thái: Todo → Doing → Done
+- Tự động phát hiện công việc quá hạn (Overdue)
 
 ### 2. AI Scheduling (Sắp Xếp Thông Minh)
-- 🤖 **Tier 1:** Groq API (cực nhanh, 9000 requests/day)
-- 🤖 **Tier 2:** Google Gemini (fallback)
-- 🤖 **Tier 3:** Local Algorithm (luôn hoạt động)
+- **Tier 1:** Groq API (cực nhanh, 9000 requests/day)
+- **Tier 2:** Google Gemini (fallback)
+- **Tier 3:** Local Algorithm (luôn hoạt động)
 
 ### 3. Dashboard & Analytics
 - 📊 Biểu đồ phân bố công việc (Pie Chart)
@@ -414,27 +416,28 @@ mongod --dbpath /path/to/data
 
 ## 👨‍🎓 Dành Cho Giảng Viên
 
-### Điểm Nổi Bật Của Dự Án
+## 🌟 Điểm nổi bật kỹ thuật
 
-1. **Architecture:** Clean separation (Frontend/Backend)
-2. **Code Quality:** Professional structure, comprehensive comments
-3. **AI Integration:** Multi-tier fallback mechanism
-4. **UX/UI:** Modern design, accessibility compliant
-5. **Scalability:** Modular components, easy to extend
-6. **Error Handling:** Robust error handling throughout
-7. **Security:** JWT auth, password hashing, input validation
-8. **Performance:** Optimized queries, caching, background jobs
+1. **Kiến trúc rõ ràng**: tách biệt Frontend/Backend, cấu trúc thư mục theo 
+   Controller-Service-Model chuẩn
+2. **AI Integration đa tầng**: cơ chế fallback 3 tier (Groq → Gemini → Local 
+   Algorithm) đảm bảo tính năng luôn hoạt động dù API bên ngoài gặp sự cố
+3. **Background job**: dùng `node-cron` tự động quét và cập nhật task quá hạn 
+   mỗi 30 phút
+4. **Bảo mật**: JWT authentication, Google OAuth, mã hóa mật khẩu, validate input
+5. **UX hoàn chỉnh**: dark mode, đa ngôn ngữ (Việt/Anh), toast notification 
+   chuẩn accessibility (WCAG 2.1 AA)
 
 ### Technologies Demonstrated
-- ✅ Full-stack development (MERN)
-- ✅ State management (Zustand)
-- ✅ Authentication & Authorization
-- ✅ AI API integration
-- ✅ Background job scheduling
-- ✅ File upload (Cloudinary)
-- ✅ Internationalization (i18n)
-- ✅ Responsive design
-- ✅ Dark mode implementation
+- Full-stack development (MERN)
+- State management (Zustand)
+- Authentication & Authorization
+- AI API integration
+- Background job scheduling
+- File upload (Cloudinary)
+- Internationalization (i18n)
+- Responsive design
+- Dark mode implementation
 
 ---
 
