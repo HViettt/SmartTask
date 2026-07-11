@@ -41,7 +41,7 @@ userSchema.pre('save', async function(next) {
     }
     
     // 2. Nếu mật khẩu là chuỗi rỗng (từ Google Login), set về undefined và skip hashing.
-    if (this.password === '') { 
+    if (this.password) { 
         this.password = undefined; 
         return next();
     }
@@ -49,7 +49,6 @@ userSchema.pre('save', async function(next) {
     // 3. Nếu có mật khẩu mới, băm nó và set hasPassword flag.
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    this.hasPassword = true;
     next();
 });
 
