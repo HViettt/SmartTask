@@ -41,7 +41,7 @@ userSchema.pre('save', async function(next) {
     }
     
     // 2. Nếu mật khẩu là chuỗi rỗng (từ Google Login), set về undefined và skip hashing.
-    if (this.password) { 
+    if (!this.password) { 
         this.password = undefined; 
         return next();
     }
