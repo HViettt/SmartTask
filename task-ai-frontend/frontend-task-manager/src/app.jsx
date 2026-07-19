@@ -68,7 +68,14 @@ const ProtectedRoute = ({ children }) => {
 
   // Đang tải user (validate token)
   if (isLoading) {
-    return <InitializationLoader message="RESTORE SESSION" />;
+    return (
+      <div className="fixed inset-0 bg-[#0B0F19] flex items-center justify-center z-[9999]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-brand-primary/20 border-t-brand-primary animate-spin" />
+          <span className="text-[9px] font-mono text-brand-sub tracking-widest uppercase animate-pulse">CONNECTING...</span>
+        </div>
+      </div>
+    );
   }
 
   // Không có user = chưa login
@@ -130,11 +137,7 @@ const App = () => {
 
   // Đợi app khởi tạo xong mới render routes
   if (!appInitialized) {
-    return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <div>Khởi tạo ứng dụng…</div>
-      </div>
-    );
+    return null;
   }
 
   return (

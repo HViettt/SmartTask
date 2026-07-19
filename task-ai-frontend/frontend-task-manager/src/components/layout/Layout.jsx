@@ -32,15 +32,19 @@ export const Layout = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
 
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(() => {
+    // Show startup sequence only when the user just logged in/registered
+    return sessionStorage.getItem('justLoggedIn') === 'true';
+  });
 
   useEffect(() => {
-    // Show startup sequence for 1.2 seconds
+    if (!isInitializing) return;
+
     const timer = setTimeout(() => {
       setIsInitializing(false);
     }, 1200);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isInitializing]);
 
   const handleLogout = () => {
     logout();
@@ -53,6 +57,8 @@ export const Layout = () => {
       // ✅ Chỉ show toast khi LOGIN, không show khi reload
       const isJustLoggedIn = sessionStorage.getItem('justLoggedIn');
       if (!isJustLoggedIn) return;
+      
+      sessionStorage.removeItem('justLoggedIn'); // Clear immediately to prevent multiple runs
       
       if (hasShownDeadlineAlert) return;
       
@@ -78,8 +84,6 @@ export const Layout = () => {
         const overdue = activeTasks.filter(isTaskExpired);
         const dueSoon24h = activeTasks.filter(t => isTaskDueSoon(t, 24)); // Còn ≤ 24 giờ
 
-        // ✅ Clear flag NGAY để tránh toast spam khi navigate
-        sessionStorage.removeItem('justLoggedIn');
         setHasShownDeadlineAlert(true);
         
         // Show toast theo priority: overdue > due soon
