@@ -1,0 +1,128 @@
+/**
+ * ============================================================================
+ * XÁC THỰC DỮ LIỆU MIDDLEWARE
+ * ============================================================================
+ * Mục đích: Xác thực dữ liệu request trước khi xử lý
+ * 
+ * Tính năng:
+ * - Kiểm tra các trường bắt buộc
+ * - Kiểm tra định dạng email
+ * - Kiểm tra độ mạnh của mật khẩu
+ * - Trả về các lỗi xác thực nhất quán
+ * 
+ * Cách sử dụng:
+ *   app.post('/api/auth/register', validateRegister, authController.register);
+ * 
+ * ============================================================================
+ */
+
+/**
+ * Xác thực yêu cầu đăng ký
+ * Kiểm tra: name, email, password không rỗng và định dạng đúng
+ */
+const validateRegister = (req, res, next) => {
+  const { name, email, password } = req.body;
+
+  // Kiểm tra các trường bắt buộc
+  if (!name || !email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tên, email và mật khẩu là bắt buộc',
+    });
+  }
+
+  // Kiểm tra định dạng email
+  if (email.length < 5 || !email.includes('@')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Định dạng email không hợp lệ',
+    });
+  }
+
+  // Kiểm tra độ dài mật khẩu (tối thiểu 6 ký tự)
+  if (password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mật khẩu phải có ít nhất 6 ký tự',
+    });
+  }
+
+  // Nếu tất cả kiểm tra đều hợp lệ, chuyển tiếp sang middleware tiếp theo
+  next();
+};
+
+/**
+ * Xác thực yêu cầu đăng nhập
+ * Kiểm tra: email và password không rỗng
+ */
+const validateLogin = (req, res, next) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email và mật khẩu là bắt buộc',
+    });
+  }
+
+  next();
+};
+
+/**
+ * Xác thực yêu cầu xác minh email
+ * Kiểm tra: email và mã xác minh (6 chữ số)
+ */
+const validateVerifyEmail = (req, res, next) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email và mã xác minh là bắt buộc',
+    });
+  }
+
+  // Mã xác minh phải là 6 chữ số
+  if (code.length !== 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mã xác minh phải là 6 chữ số',
+    });
+  }
+
+  next();
+};
+
+/**
+ * Xác thực yêu cầu tạo task
+ * Kiểm tra: title không rỗng và không quá dài
+ */
+const validateTask = (req, res, next) => {
+  const { title } = req.body;
+
+  // Kiểm tra title có tồn tại và không rỗng
+  if (!title || title.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tiêu đề task là bắt buộc',
+    });
+  }
+
+  // Giới hạn độ dài title (không quá 200 ký tự)
+  if (title.length > 200) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tiêu đề task không được vượt quá 200 ký tự',
+    });
+  }
+
+  next();
+};
+
+module.exports = {
+  validateRegister,
+  validateLogin,
+  validateVerifyEmail,
+  validateTask,
+};
+

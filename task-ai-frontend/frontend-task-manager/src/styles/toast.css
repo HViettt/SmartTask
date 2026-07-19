@@ -1,0 +1,225 @@
+/**
+ * ============================================================================
+ * TOAST NOTIFICATION STYLES
+ * ============================================================================
+ * Professional, modern toast notification styling with animations
+ * Features: Smooth enter/exit, proper stacking, dark mode support
+ * 
+ * Animation Timeline:
+ *   - Enter: 300ms (slide from right + fade + scale)
+ *   - Exit: 200ms (slide to right + fade + scale)
+ *   - Easing: cubic-bezier (material design standard)
+ * 
+ * Accessibility:
+ *   - Respects prefers-reduced-motion
+ *   - High contrast colors in dark mode
+ *   - Proper z-index stacking
+ *   - Focus indicators on buttons
+ * 
+ * Author: Senior Frontend Engineer + UI/UX Designer
+ * Last Updated: December 18, 2025
+ * ============================================================================
+ */
+
+/* ============================================================================
+   ANIMATION DEFINITIONS
+   ============================================================================ */
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+  }
+}
+
+/* Slide in from bottom for mobile */
+@keyframes toast-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   ANIMATION UTILITIES
+   ============================================================================ */
+
+.animate-toast-in {
+  animation: toast-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-toast-out {
+  animation: toast-out 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-toast-out {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   TOAST CONTAINER STYLES (react-hot-toast parent)
+   ============================================================================ */
+
+/* Override react-hot-toast default wrapper */
+div[role="alert"] {
+  /* Ensure proper stacking */
+  display: flex;
+  align-items: center;
+  width: auto;
+}
+
+/* Toast container parent - ensure it's on top of modals */
+:is(html) > :is(body) > :is(div):has(> :is(div)[role="alert"]) {
+  z-index: 999999 !important;
+  pointer-events: auto;
+}
+
+/* ============================================================================
+   INDIVIDUAL TOAST STYLES
+   ============================================================================ */
+
+.toast-notification {
+  /* Ensure close button is always clickable */
+  pointer-events: auto;
+
+  /* Smooth transitions for all properties */
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+
+  /* Hardware acceleration for smooth animations */
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.toast-notification button {
+  /* Close button pointer events */
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.toast-notification button:focus {
+  outline: none;
+  /* Focus visible handled by component */
+}
+
+/* ============================================================================
+   DARK MODE & CONTRAST
+   ============================================================================ */
+
+/* Ensure proper contrast in dark mode */
+@media (prefers-color-scheme: dark) {
+  .toast-notification {
+    /* Enhanced shadows for depth in dark mode */
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/* Light mode shadows */
+@media (prefers-color-scheme: light) {
+  .toast-notification {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+/* Tablet adjustments */
+@media (max-width: 768px) {
+  .toast-notification {
+    min-width: 280px;
+    max-width: 90vw;
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .toast-notification {
+    min-width: 270px;
+    max-width: calc(100vw - 16px);
+    font-size: 13px;
+  }
+
+  .toast-notification button {
+    padding: 0.375rem;
+  }
+
+  .toast-notification svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY
+   ============================================================================ */
+
+/* Focus visible state for keyboard navigation */
+.toast-notification button:focus-visible {
+  outline: 2px solid;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .toast-notification {
+    border-width: 1px;
+  }
+}
+
+/* ============================================================================
+   STATE-BASED STYLES
+   ============================================================================ */
+
+/* Hover state - subtle enhancement */
+.toast-notification:hover {
+  /* Slight scale up on hover */
+  transform: scale(1.01);
+}
+
+/* Active/Focus state */
+.toast-notification:focus-within {
+  /* Box shadow for focus state */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* ============================================================================
+   SPECIAL CASES
+   ============================================================================ */
+
+/* Loading toast (infinite duration) */
+.toast-notification.loading {
+  animation: none;
+}
+
+/* Success animation pulse (optional enhancement) */
+.toast-notification.success .toast-icon {
+  animation: none;
+}

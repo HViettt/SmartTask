@@ -1,0 +1,19 @@
+
+// Các hằng số dùng chung cho backend
+// Lưu ý: chỉ dùng ASCII để tránh lỗi encoding khi deploy
+
+// 3 loại thông báo hệ thống cố định
+const NOTIFICATION_TYPES = {
+	EMAIL_SENT: 'EMAIL_SENT',
+	DUE_SOON: 'DUE_SOON',
+	OVERDUE: 'OVERDUE'
+};
+
+// Trạng thái task được coi là đang hoạt động (chưa hoàn thành)
+const ACTIVE_TASK_STATUSES = ['Todo', 'Doing', 'In Progress', 'InProgress'];
+
+module.exports = {
+	NOTIFICATION_TYPES,
+	ACTIVE_TASK_STATUSES
+};
+
