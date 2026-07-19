@@ -67,7 +67,7 @@ const ProtectedRoute = ({ children }) => {
   const { user, isLoading } = useAuthStore();
 
   // Đang tải user (validate token)
-  if (isLoading) {
+  if (isLoading && !user) {
     return (
       <div className="fixed inset-0 bg-[#0B0F19] flex items-center justify-center z-[9999]">
         <div className="flex flex-col items-center gap-3">
@@ -124,8 +124,8 @@ const App = () => {
           localStorage.setItem('lastLoginDate', today);
         }
         
-        // Có token: fetch user profile để validate
-        await fetchUser();
+        // Có token: fetch user profile để validate (chạy ngầm không chặn UI)
+        fetchUser();
       }
       
       // Đánh dấu app đã khởi tạo xong
